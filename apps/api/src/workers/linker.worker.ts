@@ -39,24 +39,39 @@ async function linkEngineerOwnsService(orgId: string): Promise<void> {
 }
 
 // Link 3: Incident -[:LINKED_TO]-> Bug
-// Matches when the incident title or id contains the bug's Jira ID.
+// Matches when the incident title or description contains the bug's Jira ID (e.g. "ENG-281").
 async function linkIncidentToBug(orgId: string): Promise<void> {
   await runQuery(
     `MATCH (i:Incident { orgId: $orgId })
      MATCH (b:Bug { orgId: $orgId })
-     WHERE i.title CONTAINS b.jiraId
-        OR coalesce(i.description, '') CONTAINS b.jiraId
-        OR i.id CONTAINS b.jiraId
+     WHERE b.jiraId IS NOT NULL
+       AND (i.title CONTAINS b.jiraId
+            OR coalesce(i.description, '') CONTAINS b.jiraId
+            OR i.id CONTAINS b.jiraId)
      MERGE (i)-[:LINKED_TO]->(b)`,
     { orgId }
   );
 }
 
+// Link 4: Incident -[:FIRED]-> Alert
+// Matches when an alert fired within ±30 min of an incident starting.
+async function linkIncidentToAlert(orgId: string): Promise<void> {
+  await runQuery(
+    `MATCH (i:Incident { orgId: $orgId })
+     MATCH (a:Alert { orgId: $orgId })
+     WHERE i.startedAt IS NOT NULL AND a.firedAt IS NOT NULL
+     WITH i, a,
+       abs(duration.inSeconds(datetime(i.startedAt), datetime(a.firedAt)).seconds) AS gapSec
+     WHERE gapSec <= 1800
+     MERGE (i)-[:FIRED]->(a)`,
+    { orgId }
+  );
+}
+
 export async function runLinker(orgId: string): Promise<void> {
-  await Promise.all([
-    linkDeploymentToIncident(orgId),
-    linkEngineerOwnsService(orgId),
-    linkIncidentToBug(orgId),
-  ]);
-  console.log(`Linker complete for org ${orgId}`);
+  await linkDeploymentToIncident(orgId);
+  await linkEngineerOwnsService(orgId);
+  await linkIncidentToBug(orgId);
+  await linkIncidentToAlert(orgId);
+  console.log(`[Linker] Complete for org ${orgId}`);
 }

@@ -1,58 +1,53 @@
 import axios from 'axios';
-import { upsertNode, runQuery } from '../../graph/queries';
+import { upsertNode } from '../../graph/queries';
 
 // ── Mock data (only used when DATADOG_MOCK_MODE=true) ────────────────────────
+
 const MOCK_MONITORS = [
   {
     id: 5001,
-    name: 'Checkout Error Rate',
-    message: 'Error rate above 5%',
+    name: 'checkout.error_rate',
+    message: 'Checkout error rate > 5% for 5 minutes. Investigate payment-service and checkout-api.',
     overall_state: 'Alert',
-    overall_state_modified: '2026-06-29T10:15:00Z',
+    overall_state_modified: '2026-05-15T12:35:00Z',
+    priority: 1,
+  },
+  {
+    id: 5002,
+    name: 'payment.p99_latency',
+    message: 'Payment service p99 latency > 3000ms for 10 minutes.',
+    overall_state: 'Alert',
+    overall_state_modified: '2026-05-15T12:45:00Z',
+    priority: 2,
+  },
+  {
+    id: 5003,
+    name: 'api.5xx_rate',
+    message: 'API gateway 5xx rate > 1% — resolved after rollback.',
+    overall_state: 'OK',
+    overall_state_modified: '2026-05-14T22:45:00Z',
+    priority: 2,
   },
 ];
 
 async function runMockDatadogSync(orgId: string): Promise<number> {
   let itemsSynced = 0;
   for (const monitor of MOCK_MONITORS) {
-    const firedAt = new Date(monitor.overall_state_modified).toISOString();
-    const alertId = `datadog:monitor:${monitor.id}`;
-
-    await upsertNode('Alert', alertId, orgId, {
+    await upsertNode('Alert', `datadog:monitor:${monitor.id}`, orgId, {
       datadogId: String(monitor.id),
       metric: monitor.name,
       message: monitor.message,
-      firedAt,
+      firedAt: new Date(monitor.overall_state_modified).toISOString(),
       status: monitor.overall_state,
+      severity: mapDdPriority(monitor.priority),
       source: 'datadog',
     });
     itemsSynced++;
-
-    const deployWindowStart = new Date(new Date(firedAt).getTime() - 60 * 60 * 1000).toISOString();
-    await runQuery(
-      `MATCH (d:Deployment { orgId: $orgId })
-       MATCH (a:Alert { id: $alertId, orgId: $orgId })
-       WHERE d.deployedAt <= $firedAt AND d.deployedAt >= $windowStart
-       WITH d, a, duration.inSeconds(datetime(d.deployedAt), datetime($firedAt)).seconds AS gapSec
-       WITH d, a, gapSec, 1.0 - (toFloat(gapSec) / 3600.0) AS confidence
-       WHERE confidence > 0.1
-       MERGE (d)-[r:TRIGGERED]->(a)
-       SET r.confidence = confidence`,
-      { orgId, alertId, firedAt, windowStart: deployWindowStart }
-    );
-
-    const incStart = new Date(new Date(firedAt).getTime() - 30 * 60 * 1000).toISOString();
-    const incEnd   = new Date(new Date(firedAt).getTime() + 30 * 60 * 1000).toISOString();
-    await runQuery(
-      `MATCH (i:Incident { orgId: $orgId })
-       MATCH (a:Alert { id: $alertId, orgId: $orgId })
-       WHERE i.startedAt >= $incStart AND i.startedAt <= $incEnd
-       MERGE (i)-[:HAS_ALERT]->(a)`,
-      { orgId, alertId, incStart, incEnd }
-    );
   }
   return itemsSynced;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -72,6 +67,17 @@ function parseDatadogTs(ts: number | string | null | undefined): string | null {
   return new Date(ts).toISOString();
 }
 
+function mapDdPriority(p: number | null | undefined): 'critical' | 'high' | 'medium' | 'low' {
+  switch (p) {
+    case 1: return 'critical';
+    case 2: return 'high';
+    case 3: return 'medium';
+    default: return 'low';
+  }
+}
+
+// ── Real sync ─────────────────────────────────────────────────────────────────
+
 export async function syncDatadog(
   orgId: string,
   apiKey: string,
@@ -79,7 +85,7 @@ export async function syncDatadog(
   site: string
 ): Promise<number> {
   if (process.env.DATADOG_MOCK_MODE === 'true') {
-    console.log('[Datadog] Mock mode enabled — skipping real API calls');
+    console.log('[Datadog] Mock mode — creating Alert nodes only');
     return runMockDatadogSync(orgId);
   }
 
@@ -98,44 +104,16 @@ export async function syncDatadog(
     const firedAt = parseDatadogTs(monitor.overall_state_modified);
     if (!firedAt) continue;
 
-    const alertId = `datadog:monitor:${monitor.id}`;
-
-    await upsertNode('Alert', alertId, orgId, {
+    await upsertNode('Alert', `datadog:monitor:${monitor.id}`, orgId, {
       datadogId: String(monitor.id),
       metric: monitor.name,
       message: (monitor.message ?? '').slice(0, 500),
       firedAt,
       status: monitor.overall_state ?? 'unknown',
+      severity: mapDdPriority(monitor.priority),
       source: 'datadog',
     });
     itemsSynced++;
-
-    // Link deployments fired within 60 min before this alert
-    const deployWindowStart = new Date(new Date(firedAt).getTime() - 60 * 60 * 1000).toISOString();
-    await runQuery(
-      `MATCH (d:Deployment { orgId: $orgId })
-       MATCH (a:Alert { id: $alertId, orgId: $orgId })
-       WHERE d.deployedAt <= $firedAt AND d.deployedAt >= $windowStart
-       WITH d, a,
-         duration.inSeconds(datetime(d.deployedAt), datetime($firedAt)).seconds AS gapSec
-       WITH d, a, gapSec, 1.0 - (toFloat(gapSec) / 3600.0) AS confidence
-       WHERE confidence > 0.1
-       MERGE (d)-[r:TRIGGERED]->(a)
-       SET r.confidence = confidence`,
-      { orgId, alertId, firedAt, windowStart: deployWindowStart }
-    );
-
-    // Link incidents within ±30 min of this alert
-    const incStart = new Date(new Date(firedAt).getTime() - 30 * 60 * 1000).toISOString();
-    const incEnd   = new Date(new Date(firedAt).getTime() + 30 * 60 * 1000).toISOString();
-    await runQuery(
-      `MATCH (i:Incident { orgId: $orgId })
-       MATCH (a:Alert { id: $alertId, orgId: $orgId })
-       WHERE i.startedAt >= $incStart AND i.startedAt <= $incEnd
-       MERGE (i)-[:FIRED]->(a)`,
-      { orgId, alertId, incStart, incEnd }
-    );
-
     await sleep(100);
   }
 

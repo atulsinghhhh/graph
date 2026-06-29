@@ -21,7 +21,7 @@ function SourceLink({ source }: { source: Source }) {
   // Incident → link to detail page
   if (source.type === 'Incident') {
     return (
-      <Link href={`/incidents/${encodeURIComponent(source.id)}`} className="underline underline-offset-2">
+      <Link href={`/incidents/${source.id}`} className="underline underline-offset-2">
         {source.label}
       </Link>
     );

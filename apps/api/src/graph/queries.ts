@@ -62,35 +62,20 @@ export async function getIncidentContext(
 ): Promise<Record<string, unknown> | null> {
   const records = await runQuery<Record<string, unknown>>(
     `MATCH (i:Incident { id: $incidentId, orgId: $orgId })
-     OPTIONAL MATCH (d:Deployment { orgId: $orgId })-[t:TRIGGERED]->(i)
-     OPTIONAL MATCH (d)-[:INCLUDES]->(pr:PullRequest { orgId: $orgId })
-     OPTIONAL MATCH (pr)-[:AUTHORED_BY]->(prEng:Engineer { orgId: $orgId })
-     OPTIONAL MATCH (i)-[:LINKED_TO]->(b:Bug { orgId: $orgId })
-     OPTIONAL MATCH (i)-[:HAS_ALERT|FIRED]->(a:Alert { orgId: $orgId })
-     OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(assignee:Engineer { orgId: $orgId })
-     OPTIONAL MATCH (d)-[:DEPLOYED_TO]->(s:Service { orgId: $orgId })
-     RETURN i,
-       collect(DISTINCT {
-         id: d.id, version: d.version, environment: d.environment,
-         deployedAt: d.deployedAt, status: d.status, confidence: t.confidence
-       }) AS deployments,
-       collect(DISTINCT {
-         id: pr.id, githubId: pr.githubId, title: pr.title,
-         url: pr.url, branch: pr.branch, mergedAt: pr.mergedAt
-       }) AS pullRequests,
-       collect(DISTINCT {
-         id: coalesce(prEng.id, assignee.id),
-         name: coalesce(prEng.name, assignee.name),
-         githubLogin: coalesce(prEng.githubLogin, assignee.githubLogin),
-         avatarUrl: coalesce(prEng.avatarUrl, assignee.avatarUrl)
-       }) AS engineers,
-       collect(DISTINCT {
-         id: b.id, jiraId: b.jiraId, title: b.title, priority: b.priority, url: b.url
-       }) AS bugs,
-       collect(DISTINCT {
-         id: a.id, metric: a.metric, message: a.message, firedAt: a.firedAt, status: a.status
-       }) AS alerts,
-       collect(DISTINCT { id: s.id, name: s.name }) AS services`,
+     OPTIONAL MATCH (d:Deployment)-[t:TRIGGERED]->(i)
+     OPTIONAL MATCH (d)-[:INCLUDES]->(pr:PullRequest)
+     OPTIONAL MATCH (pr)-[:AUTHORED_BY { role: 'author' }]->(eng:Engineer)
+     OPTIONAL MATCH (pr)-[:CHANGED]->(svc:Service)
+     OPTIONAL MATCH (i)-[:FIRED]->(alert:Alert)
+     OPTIONAL MATCH (i)-[:LINKED_TO]->(bug:Bug)
+     RETURN
+       i AS incident,
+       collect(DISTINCT { deployment: d, confidence: t.confidence }) AS deployments,
+       collect(DISTINCT pr)    AS pullRequests,
+       collect(DISTINCT eng)   AS engineers,
+       collect(DISTINCT svc)   AS services,
+       collect(DISTINCT alert) AS alerts,
+       collect(DISTINCT bug)   AS bugs`,
     { incidentId, orgId }
   );
   return records[0] ?? null;

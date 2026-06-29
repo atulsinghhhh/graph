@@ -89,7 +89,10 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export default function IncidentDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id: rawId } = useParams<{ id: string }>();
+  // useParams may return the segment already encoded (jira%3AINC-100).
+  // Decode first so we always have the canonical ID, then re-encode for the API URL.
+  const id = decodeURIComponent(rawId ?? '');
   const [ctx, setCtx] = useState<IncidentCtx | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

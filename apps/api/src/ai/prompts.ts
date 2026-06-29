@@ -18,8 +18,7 @@ RELATIONSHIP DIRECTIONS (memorise — wrong direction = no results):
   (Deployment)-[:DEPLOYED_TO]->(Service)
   (Deployment)-[:TRIGGERED]->(Incident)
   (Incident)-[:LINKED_TO]->(Bug)
-  (Incident)-[:HAS_ALERT]->(Alert)
-  (Incident)-[:ASSIGNED_TO]->(Engineer)
+  (Incident)-[:FIRED]->(Alert)
   (PullRequest)-[:CHANGED]->(Service)
 
 Node properties:
@@ -36,15 +35,15 @@ Examples:
 Q: "Show all incidents" / "What incidents do we have?" / "List incidents"
 A: MATCH (i:Incident { orgId: $orgId })
    OPTIONAL MATCH (i)-[:LINKED_TO]->(b:Bug { orgId: $orgId })
-   OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(e:Engineer { orgId: $orgId })
-   RETURN i, collect(DISTINCT b) AS bugs, collect(DISTINCT e) AS engineers
+   OPTIONAL MATCH (i)-[:FIRED]->(a:Alert { orgId: $orgId })
+   RETURN i, collect(DISTINCT b) AS bugs, collect(DISTINCT a) AS alerts
    ORDER BY i.startedAt DESC LIMIT 20
 
 Q: "Show open incidents" / "What is currently broken?"
 A: MATCH (i:Incident { orgId: $orgId })
    WHERE i.status = 'open' OR i.status = 'investigating'
-   OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(e:Engineer { orgId: $orgId })
-   RETURN i, collect(DISTINCT e) AS engineers
+   OPTIONAL MATCH (i)-[:FIRED]->(a:Alert { orgId: $orgId })
+   RETURN i, collect(DISTINCT a) AS alerts
    ORDER BY i.startedAt DESC LIMIT 20
 
 Q: "Tell me about the checkout incident" / "What is the Checkout API failure?"
@@ -54,11 +53,10 @@ A: MATCH (i:Incident { orgId: $orgId })
    OPTIONAL MATCH (d)-[:INCLUDES]->(pr:PullRequest { orgId: $orgId })
    OPTIONAL MATCH (pr)-[:AUTHORED_BY { role: 'author' }]->(e:Engineer { orgId: $orgId })
    OPTIONAL MATCH (i)-[:LINKED_TO]->(b:Bug { orgId: $orgId })
-   OPTIONAL MATCH (i)-[:ASSIGNED_TO]->(ae:Engineer { orgId: $orgId })
-   OPTIONAL MATCH (i)-[:HAS_ALERT]->(a:Alert { orgId: $orgId })
+   OPTIONAL MATCH (i)-[:FIRED]->(a:Alert { orgId: $orgId })
    RETURN i, d, t.confidence AS confidence,
           collect(DISTINCT pr) AS prs,
-          collect(DISTINCT e) + collect(DISTINCT ae) AS engineers,
+          collect(DISTINCT e) AS engineers,
           collect(DISTINCT b) AS bugs,
           collect(DISTINCT a) AS alerts
    ORDER BY i.startedAt DESC LIMIT 5
@@ -69,7 +67,12 @@ A: MATCH (i:Incident { orgId: $orgId })
    OPTIONAL MATCH (d:Deployment { orgId: $orgId })-[t:TRIGGERED]->(i)
    OPTIONAL MATCH (d)-[:INCLUDES]->(pr:PullRequest { orgId: $orgId })-[:AUTHORED_BY { role: 'author' }]->(e:Engineer { orgId: $orgId })
    OPTIONAL MATCH (i)-[:LINKED_TO]->(b:Bug { orgId: $orgId })
-   RETURN i, d, t.confidence AS confidence, collect(DISTINCT pr) AS prs, collect(DISTINCT e) AS engineers, collect(DISTINCT b) AS bugs
+   OPTIONAL MATCH (i)-[:FIRED]->(a:Alert { orgId: $orgId })
+   RETURN i, d, t.confidence AS confidence,
+          collect(DISTINCT pr) AS prs,
+          collect(DISTINCT e) AS engineers,
+          collect(DISTINCT b) AS bugs,
+          collect(DISTINCT a) AS alerts
    ORDER BY i.startedAt DESC LIMIT 5
 
 Q: "What bugs are linked to incidents?"
@@ -77,10 +80,10 @@ A: MATCH (i:Incident { orgId: $orgId })-[:LINKED_TO]->(b:Bug { orgId: $orgId })
    RETURN i, b
    ORDER BY i.startedAt DESC LIMIT 20
 
-Q: "Who was assigned to incidents?"
-A: MATCH (i:Incident { orgId: $orgId })-[:ASSIGNED_TO]->(e:Engineer { orgId: $orgId })
-   RETURN i.title AS incident, i.severity AS severity, i.status AS status, e.name AS assignee
-   ORDER BY i.startedAt DESC LIMIT 20
+Q: "Which alerts fired?"
+A: MATCH (i:Incident { orgId: $orgId })-[:FIRED]->(a:Alert { orgId: $orgId })
+   RETURN i.title AS incident, a.metric AS metric, a.status AS alertStatus, a.firedAt AS firedAt, a.severity AS severity
+   ORDER BY a.firedAt DESC LIMIT 20
 
 Q: "Which engineers have merged the most PRs?"
 A: MATCH (pr:PullRequest { orgId: $orgId })-[:AUTHORED_BY { role: 'author' }]->(e:Engineer { orgId: $orgId })
