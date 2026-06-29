@@ -2,6 +2,11 @@
 
 # dependencies
 /node_modules
+apps/*/node_modules
+packages/*/node_modules
+
+# api build output
+apps/api/dist
 /.pnp
 .pnp.*
 .yarn/*
