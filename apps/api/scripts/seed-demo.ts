@@ -5,7 +5,7 @@ dotenv.config({ path: path.join(__dirname, '../.env') });
 import { initNeo4j, closeNeo4j } from '../src/config/neo4j';
 import { upsertNode, createRelationship } from '../src/graph/queries';
 
-const ORG_ID = 'demo-org';
+const ORG_ID = process.env.SEED_ORG_ID || 'demo-org';
 
 const now = Date.now();
 const t = (minutesAgo: number) => new Date(now - minutesAgo * 60 * 1000).toISOString();
