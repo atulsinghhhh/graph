@@ -9,6 +9,9 @@ import integrationsRouter from './routes/integrations';
 import syncRouter from './routes/sync';
 import incidentsRouter from './routes/incidents';
 import chatRouter from './routes/chat';
+import graphRouter from './routes/graph';
+import secretsRouter from './routes/secrets';
+import insightsRouter from './routes/insights';
 import './workers/github.worker';
 import './workers/jira.worker';
 import './workers/datadog.worker';
@@ -29,6 +32,9 @@ app.use('/api/integrations', integrationsRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/incidents', incidentsRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/graph', graphRouter);
+app.use('/api/secrets', secretsRouter);
+app.use('/api/insights', insightsRouter);
 
 app.get('/health', (_req, res) => {
   const allOk = Object.values(serviceStatus).every(s => s === 'connected' || s === 'not_configured');

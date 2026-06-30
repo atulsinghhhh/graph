@@ -185,6 +185,7 @@ router.post('/datadog/connect', authMiddleware as any, async (req: AuthedRequest
 router.get('/status', authMiddleware as any, async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
+
     const supabase = getSupabase();
 
     const { data } = await supabase

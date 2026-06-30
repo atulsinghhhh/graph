@@ -25,8 +25,14 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
   const { pathname } = request.nextUrl;
+
+  // Dev mode: skip auth entirely so demo data is accessible without login
+  if (process.env.NODE_ENV === 'development') {
+    return supabaseResponse;
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
 
   const isProtected = PROTECTED.some(p => pathname === p || pathname.startsWith(p + '/'));
 

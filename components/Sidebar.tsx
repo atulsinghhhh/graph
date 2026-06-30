@@ -2,18 +2,39 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import api from '@/lib/api';
 
 const NAV = [
   { href: '/integrations', label: 'Integrations', icon: '⚙' },
-  { href: '/sync', label: 'Sync', icon: '↻' },
-  { href: '/chat', label: 'AI Chat', icon: '◎' },
-  { href: '/incidents', label: 'Incidents', icon: '⚠' },
+  { href: '/sync',         label: 'Sync',          icon: '↻' },
+  { href: '/graph',        label: 'Graph',          icon: '◈' },
+  { href: '/chat',         label: 'AI Chat',        icon: '◎' },
+  { href: '/incidents',    label: 'Incidents',      icon: '⚠' },
+  { href: '/insights',     label: 'Dev Insights',   icon: '⚡' },
+  { href: '/secrets',      label: 'Secrets',        icon: '⛨' },
 ];
 
 export default function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const router   = useRouter();
+  const [openSecrets, setOpenSecrets] = useState(0);
+
+  // Poll open secret alert count every 60s
+  useEffect(() => {
+    function fetchCount() {
+      api.get('/api/secrets')
+        .then(r => {
+          const n = (r.data as any[]).filter((row: any) => row.alert?.state === 'open').length;
+          setOpenSecrets(n);
+        })
+        .catch(() => {});
+    }
+    fetchCount();
+    const id = setInterval(fetchCount, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   async function signOut() {
     const supabase = createClient();
@@ -31,6 +52,7 @@ export default function Sidebar({ email }: { email: string }) {
       <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
         {NAV.map(({ href, label, icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
+          const isSecrets = href === '/secrets';
           return (
             <Link
               key={href}
@@ -42,7 +64,14 @@ export default function Sidebar({ email }: { email: string }) {
               }`}
             >
               <span className="text-base leading-none">{icon}</span>
-              {label}
+              <span className="flex-1">{label}</span>
+              {/* Red badge for open secret alerts */}
+              {isSecrets && openSecrets > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full
+                  bg-red-500 text-white text-[9px] font-bold leading-none animate-pulse">
+                  {openSecrets}
+                </span>
+              )}
             </Link>
           );
         })}

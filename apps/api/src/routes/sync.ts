@@ -48,6 +48,7 @@ router.post('/start', async (req: AuthedRequest, res: Response) => {
 router.get('/status', async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
+
     const supabase = getSupabase();
 
     const { data: jobs, error } = await supabase
