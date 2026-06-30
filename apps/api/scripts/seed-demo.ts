@@ -111,6 +111,22 @@ async function seed() {
     resolvedAt: t(18),
   });
 
+  // ── SecretAlert ────────────────────────────────────────────
+  // Created ~5 min before the incident (t(87)) so confidence ≈ 0.917 (rounds to 0.91)
+  await upsertNode('SecretAlert', 'github:secret:100', ORG_ID, {
+    alertNumber: 100,
+    source: 'github',
+    secretType: 'AWS Access Key',
+    state: 'resolved',
+    resolution: 'revoked',
+    createdAt: t(87),
+    updatedAt: t(20),
+    repository: 'acme/checkout-service',
+    url: 'https://github.com/acme/checkout-service/security/secret-scanning/100',
+    commitSha: 'abc123def456789abc123def456789abc12345ab',
+    pushProtectionBypassed: false,
+  });
+
   console.log('Nodes created. Building relationships...');
 
   // ── AUTHORED ───────────────────────────────────────────────
@@ -153,15 +169,36 @@ async function seed() {
   // ── REPORTED_BY ───────────────────────────────────────────
   await createRelationship('Bug', 'bug-eng-281', 'Engineer', 'eng-alice', 'REPORTED_BY', ORG_ID, {});
 
+  // ── HAS_SECRET_ALERT ──────────────────────────────────────
+  await createRelationship('Service', 'svc-checkout', 'SecretAlert', 'github:secret:100', 'HAS_SECRET_ALERT', ORG_ID, {});
+
+  // ── PUSHED_SECRET ─────────────────────────────────────────
+  await createRelationship('Engineer', 'eng-alice', 'SecretAlert', 'github:secret:100', 'PUSHED_SECRET', ORG_ID, {});
+
+  // ── INTRODUCED_SECRET ─────────────────────────────────────
+  await createRelationship('PullRequest', 'pr-421', 'SecretAlert', 'github:secret:100', 'INTRODUCED_SECRET', ORG_ID, {});
+
+  // ── POSSIBLY_TRIGGERED ────────────────────────────────────
+  // Secret was created 5 min before incident: confidence = 1.0 - (5/60) ≈ 0.917
+  await createRelationship('SecretAlert', 'github:secret:100', 'Incident', 'inc-checkout-001', 'POSSIBLY_TRIGGERED', ORG_ID, {
+    confidence: 0.91,
+    detectedAt: new Date().toISOString(),
+  });
+
   console.log('\nSeed complete. Demo graph summary:');
-  console.log('  Engineers : Alice Chen, Bob Kim');
-  console.log('  Services  : checkout-api, payment-service');
-  console.log('  PRs       : #421 (breaking change), #430 (rollback)');
-  console.log('  Deploys   : v1.4.2 (failed), v1.4.3 (success)');
-  console.log('  Alert     : checkout.error_rate critical');
-  console.log('  Incident  : checkout failure (resolved)');
-  console.log('  Bug       : ENG-281');
-  console.log('\nTry asking: "Why did checkout fail yesterday?"');
+  console.log('  Engineers    : Alice Chen, Bob Kim');
+  console.log('  Services     : checkout-api, payment-service');
+  console.log('  PRs          : #421 (breaking change), #430 (rollback)');
+  console.log('  Deploys      : v1.4.2 (failed), v1.4.3 (success)');
+  console.log('  Alert        : checkout.error_rate critical');
+  console.log('  Incident     : checkout failure (resolved)');
+  console.log('  Bug          : ENG-281');
+  console.log('  SecretAlert  : AWS Access Key #100 (acme/checkout-service, pushed by Alice, confidence 0.91)');
+  console.log('\nTry asking:');
+  console.log('  "Why did checkout fail yesterday?"');
+  console.log('  "Did anyone push a secret?"');
+  console.log('  "Who leaked an AWS key?"');
+  console.log('  "Which incident was caused by a secret?"');
 
   await closeNeo4j();
 }

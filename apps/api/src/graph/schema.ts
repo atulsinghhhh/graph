@@ -1,11 +1,12 @@
 import { runQuery } from '../config/neo4j';
 
-const LABELS = ['Deployment', 'PullRequest', 'Engineer', 'Service', 'Incident', 'Bug', 'Alert'];
+const LABELS = ['Deployment', 'PullRequest', 'Engineer', 'Service', 'Incident', 'Bug', 'Alert', 'SecretAlert'];
 
 const TIME_INDEXES: [string, string][] = [
   ['Deployment', 'deployedAt'],
   ['Incident', 'startedAt'],
   ['Alert', 'firedAt'],
+  ['SecretAlert', 'createdAt'],
 ];
 
 export async function applyNeo4jSchema(): Promise<void> {

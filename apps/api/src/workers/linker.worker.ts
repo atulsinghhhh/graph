@@ -68,10 +68,32 @@ async function linkIncidentToAlert(orgId: string): Promise<void> {
   );
 }
 
+// Link 5: SecretAlert -[:POSSIBLY_TRIGGERED]-> Incident
+// Fires when a SecretAlert was created within 60 min before an incident started.
+// confidence = 1.0 - (minutesDifference / 60); only created when confidence > 0.2
+async function linkSecretAlertToIncident(orgId: string): Promise<void> {
+  const now = new Date().toISOString(); 
+  await runQuery(
+    `MATCH (s:SecretAlert { orgId: $orgId })
+     MATCH (i:Incident { orgId: $orgId })
+     WHERE s.createdAt IS NOT NULL AND i.startedAt IS NOT NULL
+       AND datetime(s.createdAt) <= datetime(i.startedAt)
+       AND datetime(i.startedAt) <= datetime(s.createdAt) + duration({ minutes: 60 })
+     WITH s, i,
+       duration.inSeconds(datetime(s.createdAt), datetime(i.startedAt)).seconds AS gapSec
+     WITH s, i, gapSec, 1.0 - (toFloat(gapSec) / 3600.0) AS confidence
+     WHERE confidence > 0.2
+     MERGE (s)-[r:POSSIBLY_TRIGGERED]->(i)
+     SET r.confidence = confidence, r.detectedAt = $now`,
+    { orgId, now }
+  );
+}
+
 export async function runLinker(orgId: string): Promise<void> {
   await linkDeploymentToIncident(orgId);
   await linkEngineerOwnsService(orgId);
   await linkIncidentToBug(orgId);
   await linkIncidentToAlert(orgId);
+  await linkSecretAlertToIncident(orgId);
   console.log(`[Linker] Complete for org ${orgId}`);
 }

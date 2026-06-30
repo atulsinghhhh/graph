@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { upsertNode, createRelationship, runQuery } from '../../graph/queries';
+import { syncSecretScanningAlerts } from './secret-scanning';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -167,6 +168,15 @@ export async function syncGitHub(orgId: string, accessToken: string): Promise<nu
          MERGE (d)-[:INCLUDES]->(pr)`,
         { deployId, orgId, repoName, windowStart, deployedAt }
       );
+    }
+
+    // 4 — Sync secret scanning alerts (paginated, 100ms between pages)
+    await sleep(100);
+    try {
+      const secretsSynced = await syncSecretScanningAlerts(orgId, gh, repoName, serviceId);
+      itemsSynced += secretsSynced;
+    } catch (err: any) {
+      console.warn(`[GitHub] Secret scanning sync failed for ${repoName}: ${err.message}`);
     }
   }
 

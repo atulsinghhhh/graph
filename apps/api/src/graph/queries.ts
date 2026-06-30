@@ -4,12 +4,14 @@ export { runQuery };
 
 const VALID_LABELS = new Set([
   'Deployment', 'PullRequest', 'Engineer', 'Service', 'Incident', 'Bug', 'Alert',
+  'SecretAlert',
 ]);
 
 const VALID_REL_TYPES = new Set([
   'INCLUDES', 'AUTHORED_BY', 'AUTHORED', 'OWNS', 'DEPLOYED_TO', 'DEPLOYS_TO',
   'TRIGGERED', 'TRIGGERED_ALERT', 'LINKED_TO', 'FIRED', 'CHANGED',
   'ASSIGNED_TO', 'HAS_ALERT', 'RESOLVED_BY', 'REPORTED_BY',
+  'HAS_SECRET_ALERT', 'INTRODUCED_SECRET', 'PUSHED_SECRET', 'POSSIBLY_TRIGGERED',
 ]);
 
 function assertLabel(label: string): void {
@@ -113,6 +115,49 @@ export async function findServiceOwner(
     { serviceName, orgId }
   );
   return records[0] ?? null;
+}
+
+export async function getRecentSecretAlerts(
+  orgId: string,
+  limitCount = 20
+): Promise<Record<string, unknown>[]> {
+  return runQuery<Record<string, unknown>>(
+    `MATCH (s:SecretAlert { orgId: $orgId })
+     OPTIONAL MATCH (svc:Service { orgId: $orgId })-[:HAS_SECRET_ALERT]->(s)
+     OPTIONAL MATCH (e:Engineer { orgId: $orgId })-[:PUSHED_SECRET]->(s)
+     RETURN s, svc.name AS service, e.name AS pushedBy
+     ORDER BY s.createdAt DESC
+     LIMIT $limitCount`,
+    { orgId, limitCount }
+  );
+}
+
+export async function getSecretsForIncident(
+  incidentId: string,
+  orgId: string
+): Promise<Record<string, unknown>[]> {
+  return runQuery<Record<string, unknown>>(
+    `MATCH (s:SecretAlert { orgId: $orgId })-[r:POSSIBLY_TRIGGERED]->(i:Incident { id: $incidentId, orgId: $orgId })
+     OPTIONAL MATCH (e:Engineer { orgId: $orgId })-[:PUSHED_SECRET]->(s)
+     OPTIONAL MATCH (svc:Service { orgId: $orgId })-[:HAS_SECRET_ALERT]->(s)
+     RETURN s, r.confidence AS confidence, e.name AS pushedBy, svc.name AS service
+     ORDER BY r.confidence DESC`,
+    { incidentId, orgId }
+  );
+}
+
+export async function findEngineerSecrets(
+  engineerId: string,
+  orgId: string
+): Promise<Record<string, unknown>[]> {
+  return runQuery<Record<string, unknown>>(
+    `MATCH (e:Engineer { id: $engineerId, orgId: $orgId })-[:PUSHED_SECRET]->(s:SecretAlert { orgId: $orgId })
+     OPTIONAL MATCH (svc:Service { orgId: $orgId })-[:HAS_SECRET_ALERT]->(s)
+     OPTIONAL MATCH (s)-[r:POSSIBLY_TRIGGERED]->(i:Incident { orgId: $orgId })
+     RETURN s, svc.name AS service, r.confidence AS incidentConfidence, i.title AS incidentTitle
+     ORDER BY s.createdAt DESC`,
+    { engineerId, orgId }
+  );
 }
 
 export async function findDeploymentsNearAlert(
