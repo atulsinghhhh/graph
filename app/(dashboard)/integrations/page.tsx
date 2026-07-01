@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { ArrowRight } from 'lucide-react';
 import ConnectCard from '@/components/integrations/ConnectCard';
 import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface IntegrationStatus {
   connected: boolean;
@@ -17,22 +20,32 @@ interface Status {
 }
 
 export default function IntegrationsPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
   const [banner, setBanner] = useState('');
 
-  useEffect(() => {
-    const connected = searchParams.get('connected');
-    const error = searchParams.get('error');
-    if (connected) setBanner(`${connected} connected successfully`);
-    if (error) setBanner(`Error: ${error.replace(/_/g, ' ')}`);
-  }, [searchParams]);
-
-  useEffect(() => {
+  function fetchStatus() {
     api.get('/api/integrations/status')
       .then(r => setStatus(r.data))
       .catch(() => {});
+  }
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const connected = searchParams.get('connected');
+    const error = searchParams.get('error');
+    if (connected) {
+      setBanner(`${connected} connected successfully`);
+      fetchStatus(); // refresh status immediately so badge shows
+    }
+    if (error) setBanner(`Error: ${error.replace(/_/g, ' ')}`);
+    if (connected || error) {
+      window.history.replaceState({}, '', '/integrations');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
   }, []);
 
   const connectedCount = status
@@ -41,15 +54,16 @@ export default function IntegrationsPage() {
 
   return (
     <div className="p-8 max-w-2xl">
-      <h1 className="text-xl font-semibold text-zinc-900 mb-1">Integrations</h1>
-      <p className="text-sm text-zinc-500 mb-6">Connect your tools to build the incident graph.</p>
+      <h1 className="text-xl font-semibold text-foreground mb-1">Integrations</h1>
+      <p className="text-sm text-muted-foreground mb-6">Connect your tools to build the incident graph.</p>
 
       {banner && (
-        <div className={`mb-5 rounded-lg px-4 py-3 text-sm ${
+        <div className={cn(
+          'mb-5 rounded-md px-4 py-3 text-sm border',
           banner.startsWith('Error')
-            ? 'bg-red-50 text-red-700 border border-red-200'
-            : 'bg-green-50 text-green-700 border border-green-200'
-        }`}>
+            ? 'bg-destructive/10 text-destructive border-destructive/20'
+            : 'bg-success/10 text-success border-success/20'
+        )}>
           {banner}
         </div>
       )}
@@ -66,12 +80,10 @@ export default function IntegrationsPage() {
       </div>
 
       {connectedCount >= 2 && (
-        <button
-          onClick={() => router.push('/sync')}
-          className="mt-6 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 transition-colors"
-        >
-          Start sync →
-        </button>
+        <Button onClick={() => router.push('/sync')} className="mt-6">
+          Start sync
+          <ArrowRight />
+        </Button>
       )}
     </div>
   );

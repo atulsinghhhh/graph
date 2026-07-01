@@ -11,7 +11,7 @@ api.interceptors.request.use(async (config) => {
   if (session?.access_token) {
     config.headers.Authorization = `Bearer ${session.access_token}`;
   } else if (process.env.NODE_ENV === 'development') {
-    config.headers['x-org-id'] = 'demo-org';
+    config.headers['x-org-id'] = '00000000-0000-0000-0000-000000000001';
   }
   return config;
 });

@@ -84,10 +84,10 @@ export async function syncSecretScanningAlerts(
       );
       alerts = data as any[];
     } catch (err: any) {
-      // 404 = secret scanning not enabled for this repo; skip silently
-      if (err.response?.status === 404) break;
-      // 422 = secret scanning not supported (e.g. public forks); skip
-      if (err.response?.status === 422) break;
+      const status = err.response?.status;
+      // 400/404 = secret scanning not enabled or not available for this repo
+      // 422 = not supported (e.g. public forks on free plan)
+      if (status === 400 || status === 404 || status === 422) break;
       throw err;
     }
 

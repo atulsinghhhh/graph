@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ArrowUp } from 'lucide-react';
 import MessageBubble from '@/components/chat/MessageBubble';
 import api from '@/lib/api';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 
 interface Source {
   type: string;
@@ -18,7 +21,14 @@ interface Message {
   cypherQuery?: string;
 }
 
-const SUGGESTIONS = [
+const SOLO_SUGGESTIONS = [
+  'Why did my last deployment fail?',
+  'What did I change in the past week?',
+  'Which of my services had the most errors?',
+  'How do I fix the current open incident?',
+];
+
+const ORG_SUGGESTIONS = [
   'Show all incidents',
   'What caused the Checkout API failure?',
   'Which bugs are linked to incidents?',
@@ -32,10 +42,17 @@ export default function ChatPage() {
   const sessionId = useRef(crypto.randomUUID());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [isSolo, setIsSolo] = useState(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  useEffect(() => {
+    api.get('/api/organizations/me')
+      .then(r => setIsSolo(!!r.data.isSolo))
+      .catch(() => {});
+  }, []);
 
   async function send(question: string) {
     if (!question.trim() || loading) return;
@@ -76,9 +93,9 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="border-b border-zinc-200 bg-white px-6 py-4 shrink-0">
-        <h1 className="text-base font-semibold text-zinc-900">AI Incident Investigation</h1>
-        <p className="text-xs text-zinc-400">Ask anything about your incidents, deployments, or engineers.</p>
+      <div className="border-b border-border bg-card px-6 py-4 shrink-0">
+        <h1 className="text-base font-semibold text-foreground">AI Incident Investigation</h1>
+        <p className="text-xs text-muted-foreground">Ask anything about your incidents, deployments, or engineers.</p>
       </div>
 
       {/* Message list */}
@@ -86,15 +103,15 @@ export default function ChatPage() {
         {isEmpty ? (
           <div className="h-full flex flex-col items-center justify-center gap-6">
             <div className="text-center">
-              <p className="text-zinc-500 text-sm mb-1">No conversation yet.</p>
-              <p className="text-zinc-400 text-xs">Try one of the suggested questions below.</p>
+              <p className="text-muted-foreground text-sm mb-1">No conversation yet.</p>
+              <p className="text-muted-foreground/70 text-xs">Try one of the suggested questions below.</p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-              {SUGGESTIONS.map(s => (
+              {(isSolo ? SOLO_SUGGESTIONS : ORG_SUGGESTIONS).map(s => (
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="text-left rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800 hover:border-zinc-400 hover:bg-zinc-50 transition-colors"
+                  className="text-left rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground hover:border-primary/50 hover:bg-accent/50 transition-colors"
                 >
                   {s}
                 </button>
@@ -113,25 +130,26 @@ export default function ChatPage() {
       </div>
 
       {/* Input bar */}
-      <div className="border-t border-zinc-200 bg-white px-6 py-4 shrink-0">
+      <div className="border-t border-border bg-card px-6 py-4 shrink-0">
         <div className="max-w-2xl mx-auto flex items-end gap-3">
-          <textarea
+          <Textarea
             ref={inputRef}
             rows={1}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
             placeholder="Ask about an incident, deployment, or engineer…"
-            className="flex-1 resize-none rounded-xl border border-zinc-300 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 leading-relaxed bg-white"
+            className="flex-1 resize-none rounded-xl leading-relaxed"
             style={{ maxHeight: 120, overflowY: 'auto' }}
           />
-          <button
+          <Button
             onClick={() => send(input)}
             disabled={!input.trim() || loading}
-            className="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-40 transition-colors shrink-0"
+            size="icon"
+            className="rounded-xl shrink-0 size-11"
           >
-            Send
-          </button>
+            <ArrowUp />
+          </Button>
         </div>
       </div>
     </div>

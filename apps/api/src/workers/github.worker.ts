@@ -77,7 +77,10 @@ export async function triggerGitHubSync(
 
   if (error || !syncJob) throw new Error('Failed to create sync job');
 
-  const job = await githubQueue.add({ orgId, integrationId, syncJobId: syncJob.id });
+  const job = await githubQueue.add(
+    { orgId, integrationId, syncJobId: syncJob.id },
+    { timeout: 10 * 60 * 1000 } // 10-minute hard cap
+  );
 
   return { syncJobId: syncJob.id, jobId: job.id };
 }

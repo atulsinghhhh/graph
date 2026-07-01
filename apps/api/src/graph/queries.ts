@@ -83,6 +83,29 @@ export async function getIncidentContext(
   return records[0] ?? null;
 }
 
+// Finds the real resolution for a resolved incident: the next deployment to the
+// affected service (via the same DEPLOYED_TO edge the triggering deployment used),
+// deployed after the triggering deployment. If that deployment shipped a PR, the PR
+// is returned as the fix PR (e.g. a rollback). Returns null if no such deployment
+// exists in the graph — we never fabricate a fix when the data doesn't show one.
+export async function getIncidentFix(
+  incidentId: string,
+  orgId: string
+): Promise<Record<string, unknown> | null> {
+  const records = await runQuery<Record<string, unknown>>(
+    `MATCH (i:Incident { id: $incidentId, orgId: $orgId, status: 'resolved' })
+     MATCH (d:Deployment { orgId: $orgId })-[:TRIGGERED]->(i)
+     MATCH (d)-[:DEPLOYED_TO]->(svc:Service { orgId: $orgId })
+     MATCH (fixD:Deployment { orgId: $orgId })-[:DEPLOYED_TO]->(svc)
+     WHERE datetime(fixD.deployedAt) > datetime(d.deployedAt)
+     WITH fixD ORDER BY fixD.deployedAt ASC LIMIT 1
+     OPTIONAL MATCH (fixD)-[:INCLUDES]->(fixPr:PullRequest { orgId: $orgId })
+     RETURN fixD AS fixDeployment, fixPr AS fixPullRequest`,
+    { incidentId, orgId }
+  );
+  return records[0] ?? null;
+}
+
 export async function findIncidentsByTimeRange(
   orgId: string,
   fromISO: string,
@@ -158,6 +181,14 @@ export async function findEngineerSecrets(
      ORDER BY s.createdAt DESC`,
     { engineerId, orgId }
   );
+}
+
+export async function countEngineers(orgId: string): Promise<number> {
+  const records = await runQuery<{ count: number }>(
+    `MATCH (e:Engineer { orgId: $orgId }) RETURN count(e) AS count`,
+    { orgId }
+  );
+  return Number(records[0]?.count ?? 0);
 }
 
 export async function findDeploymentsNearAlert(

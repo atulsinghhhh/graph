@@ -1,74 +1,6 @@
 import axios from 'axios';
 import { upsertNode, createRelationship } from '../../graph/queries';
 
-// ── Mock data (only used when JIRA_MOCK_MODE=true) ───────────────────────────
-const MOCK_PROJECTS = [{ id: '10001', key: 'ENG', name: 'Engineering' }];
-const MOCK_ISSUES = [
-  {
-    key: 'INC-100',
-    fields: {
-      summary: 'Checkout API failure',
-      issuetype: { name: 'Incident' },
-      priority: { name: 'Highest' },
-      status: { name: 'Done' },
-      created: '2026-05-15T12:30:00Z',
-      updated: '2026-05-15T14:00:00Z',
-      assignee: { accountId: 'alice@example.com', displayName: 'Alice Chen', emailAddress: 'alice@example.com', avatarUrls: {} },
-    },
-  },
-  {
-    key: 'ENG-281',
-    fields: {
-      summary: 'Stripe SCA validation rejects valid cards (ENG-281)',
-      issuetype: { name: 'Bug' },
-      priority: { name: 'High' },
-      status: { name: 'Resolved' },
-      created: '2026-05-15T11:00:00Z',
-      updated: '2026-05-15T13:00:00Z',
-      assignee: null,
-    },
-  },
-];
-
-async function runMockJiraSync(orgId: string): Promise<number> {
-  let itemsSynced = 0;
-  for (const issue of MOCK_ISSUES) {
-    const { fields, key } = issue;
-    const issueType = fields.issuetype.name;
-    const priority = mapPriority(fields.priority.name);
-    const resolved = isResolved(fields.status.name);
-
-    if (issueType === 'Incident') {
-      await upsertNode('Incident', `jira:${key}`, orgId, {
-        title: fields.summary, severity: priority,
-        startedAt: fields.created, resolvedAt: resolved ? fields.updated : null,
-        status: resolved ? 'resolved' : 'open', source: 'jira',
-      });
-    } else {
-      await upsertNode('Bug', `jira:${key}`, orgId, {
-        jiraId: key, title: fields.summary, priority,
-        status: fields.status.name, source: 'jira',
-      });
-    }
-    itemsSynced++;
-
-    if (fields.assignee) {
-      const a = fields.assignee;
-      const engineerId = `jira:user:${a.accountId}`;
-      await upsertNode('Engineer', engineerId, orgId, {
-        name: a.displayName, email: a.emailAddress ?? null,
-        githubLogin: null, avatarUrl: null, source: 'jira',
-      });
-      const nodeLabel = issueType === 'Incident' ? 'Incident' : 'Bug';
-      await createRelationship(nodeLabel, `jira:${key}`, 'Engineer', engineerId, 'ASSIGNED_TO', orgId);
-      itemsSynced++;
-    }
-  }
-  // Link Incident → Bug
-  await createRelationship('Incident', 'jira:INC-100', 'Bug', 'jira:ENG-281', 'LINKED_TO', orgId);
-  return itemsSynced;
-}
-
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
@@ -101,10 +33,6 @@ export async function syncJira(
   cloudId: string,
   siteUrl: string
 ): Promise<number> {
-  if (process.env.JIRA_MOCK_MODE === 'true') {
-    console.log('[Jira] Mock mode enabled — skipping real API calls');
-    return runMockJiraSync(orgId);
-  }
   const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3`;
   const headers = { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' };
   let itemsSynced = 0;

@@ -42,15 +42,21 @@ jiraQueue.process(async (job) => {
     try {
       accessToken = await getValidJiraToken(integration as any);
     } catch (refreshErr: any) {
-      // Mark the integration as errored so the user knows to reconnect
-      await supabase
-        .from('integrations')
-        .update({ status: 'error' })
-        .eq('id', integrationId);
-      throw new Error('Jira token refresh failed — reconnect Jira from the integrations page');
+      await supabase.from('integrations').update({ status: 'error' }).eq('id', integrationId);
+      throw new Error('Jira token expired — reconnect Jira from the integrations page');
     }
 
-    const itemsSynced = await syncJira(orgId, accessToken, cloudId, siteUrl);
+    let itemsSynced: number;
+    try {
+      itemsSynced = await syncJira(orgId, accessToken, cloudId, siteUrl);
+    } catch (apiErr: any) {
+      const status = apiErr.response?.status;
+      if (status === 401 || status === 403 || status === 410) {
+        await supabase.from('integrations').update({ status: 'error' }).eq('id', integrationId);
+        throw new Error(`Jira auth invalid (${status}) — reconnect Jira from the integrations page`);
+      }
+      throw apiErr;
+    }
 
     await Promise.all([
       supabase

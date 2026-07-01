@@ -62,6 +62,22 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
+-- org_invites
+CREATE TABLE IF NOT EXISTS public.org_invites (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  email       text NOT NULL,
+  role        text NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+  token       text NOT NULL UNIQUE,
+  invited_by  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status      text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'revoked')),
+  expires_at  timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS org_invites_token_idx ON public.org_invites (token);
+CREATE INDEX IF NOT EXISTS org_invites_pending_email_idx ON public.org_invites (lower(email)) WHERE status = 'pending';
+
 -- ============================================================
 -- Row Level Security
 -- ============================================================
@@ -71,6 +87,7 @@ ALTER TABLE public.org_members    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.integrations   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_jobs      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_messages  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.org_invites    ENABLE ROW LEVEL SECURITY;
 
 -- Helper: return the calling user's org_id (used in RLS policies)
 CREATE OR REPLACE FUNCTION public.current_user_org_id()
@@ -119,3 +136,7 @@ CREATE POLICY "chat_messages_insert" ON public.chat_messages
     org_id = public.current_user_org_id()
     AND user_id = auth.uid()
   );
+
+-- org_invites: members can view their org's invites (writes go through the service-role API)
+CREATE POLICY "org_invites_select" ON public.org_invites
+  FOR SELECT USING (org_id = public.current_user_org_id());

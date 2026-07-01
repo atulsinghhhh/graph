@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import neo4j from 'neo4j-driver';
-import { runQuery, getIncidentContext } from '../graph/queries';
+import { runQuery, getIncidentContext, getIncidentFix } from '../graph/queries';
 import { authMiddleware, AuthedRequest } from '../middleware/auth';
 
 const router = Router();
@@ -20,6 +20,45 @@ function toNum(v: unknown): number | null {
   if (typeof v === 'number') return v;
   if (typeof v === 'object' && 'low' in (v as any)) return (v as any).low as number;
   return null;
+}
+
+type BreakPoint = 'pr' | 'deployment' | 'service' | null;
+
+// Finds the earliest node in the chain with a problem: a PR (if it shipped in the
+// triggering deployment), else the deployment itself, else — if only an alert/incident
+// was traced with no deployment — the service level. Everything after the break point
+// is a cascade caused by it.
+function determineBreakPoint(ctx: {
+  deployments: Array<{ id: string; confidence: number | null }>;
+  pullRequests: Array<{ id: string }>;
+  alerts: Array<{ id: string }>;
+}): { breakPoint: BreakPoint; breakNodeId: string | null; cascadeNodes: string[] } {
+  const { deployments, pullRequests, alerts } = ctx;
+
+  if (deployments.length > 0 && (deployments[0].confidence ?? 0) > 0.5) {
+    if (pullRequests.length > 0) {
+      return {
+        breakPoint: 'pr',
+        breakNodeId: pullRequests[0].id,
+        cascadeNodes: ['deployment', 'service', 'alert', 'incident', 'bug'],
+      };
+    }
+    return {
+      breakPoint: 'deployment',
+      breakNodeId: deployments[0].id,
+      cascadeNodes: ['service', 'alert', 'incident', 'bug'],
+    };
+  }
+
+  if (alerts.length > 0) {
+    return {
+      breakPoint: 'service',
+      breakNodeId: 'service',
+      cascadeNodes: ['alert', 'incident', 'bug'],
+    };
+  }
+
+  return { breakPoint: null, breakNodeId: null, cascadeNodes: [] };
 }
 
 router.get('/', async (req: AuthedRequest, res: Response) => {
@@ -52,13 +91,15 @@ router.get('/:id', async (req: AuthedRequest, res: Response) => {
     }
 
     // deployments: collect(DISTINCT { deployment: d, confidence: t.confidence })
+    // Sorted by confidence desc so deployments[0] is the most likely trigger.
     const deployments = (raw.deployments ?? [])
       .map((entry: any) => {
         const p = props(entry.deployment ?? entry);
         if (!p) return null;
         return { ...p, confidence: toNum(entry.confidence) };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort((a: any, b: any) => (b.confidence ?? 0) - (a.confidence ?? 0));
 
     // pullRequests, engineers, services, alerts, bugs: collect(DISTINCT <node>)
     const pullRequests = (raw.pullRequests ?? []).map(props).filter(Boolean);
@@ -67,7 +108,25 @@ router.get('/:id', async (req: AuthedRequest, res: Response) => {
     const alerts      = (raw.alerts      ?? []).map(props).filter(Boolean);
     const bugs        = (raw.bugs        ?? []).map(props).filter(Boolean);
 
-    res.json({ incident, deployments, pullRequests, engineers, services, alerts, bugs });
+    const { breakPoint, breakNodeId, cascadeNodes } = determineBreakPoint({
+      deployments, pullRequests, alerts,
+    });
+
+    // Only attach a fix node when the graph actually shows a resolving deployment/PR —
+    // never fabricate one just because the incident is marked resolved.
+    let fix: { fixDeployment: Record<string, unknown>; fixPullRequest: Record<string, unknown> | null } | null = null;
+    if (incident.status === 'resolved') {
+      const fixRaw = await getIncidentFix(req.params.id, orgId) as any;
+      const fixDeployment = fixRaw ? props(fixRaw.fixDeployment) : null;
+      if (fixDeployment) {
+        fix = { fixDeployment, fixPullRequest: props(fixRaw.fixPullRequest) };
+      }
+    }
+
+    res.json({
+      incident, deployments, pullRequests, engineers, services, alerts, bugs,
+      breakPoint, breakNodeId, cascadeNodes, fix,
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

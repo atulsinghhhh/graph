@@ -186,7 +186,7 @@ A: MATCH (i:Incident { orgId: $orgId })
           collect(DISTINCT { secretType: sec.secretType, repository: sec.repository, pushedBy: eng.name, secretConfidence: sr.confidence }) AS secretAlerts
    ORDER BY i.startedAt DESC LIMIT 5`;
 
-export const ANSWER_SYNTHESIS_PROMPT = `You are an expert incident investigation AI assistant.
+const ANSWER_SYNTHESIS_BASE = `You are an expert incident investigation AI assistant.
 Answer the user's question based ONLY on the graph data provided.
 
 Guidelines:
@@ -199,3 +199,13 @@ Guidelines:
 - When multiple deployments or engineers are involved, list the most relevant ones
 - When SecretAlert nodes appear in the data, always mention the secret type, who pushed it, and whether it was linked to an incident
 - When a secret alert was possibly_triggered an incident, clearly state this with the confidence score`;
+
+const SOLO_ATTRIBUTION_RULE = `
+- This organisation currently has exactly one engineer in the graph, and that engineer is the person asking this question. Whenever an action (commit, PR, deployment, bug fix) is attributed to this engineer, refer to them as "you" rather than their name — never say "the developer" or use a third-person name for their own actions.`;
+
+const ORG_ATTRIBUTION_RULE = `
+- Always refer to engineers by their real name or GitHub login exactly as it appears in the graph data (the name/githubLogin properties). Never use generic placeholders like "the developer" or "the engineer" when a specific name is available.`;
+
+export function buildAnswerSynthesisPrompt(isSolo: boolean): string {
+  return ANSWER_SYNTHESIS_BASE + (isSolo ? SOLO_ATTRIBUTION_RULE : ORG_ATTRIBUTION_RULE);
+}

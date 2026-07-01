@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import neo4j from 'neo4j-driver';
-import { runQuery } from '../graph/queries';
-import { CYPHER_GENERATION_PROMPT, ANSWER_SYNTHESIS_PROMPT } from './prompts';
+import { runQuery, countEngineers } from '../graph/queries';
+import { CYPHER_GENERATION_PROMPT, buildAnswerSynthesisPrompt } from './prompts';
 
 const MODEL = 'llama-3.3-70b-versatile';
 
@@ -136,7 +136,8 @@ function extractSources(records: Record<string, unknown>[]): CitedSource[] {
 async function synthesizeAnswer(
   question: string,
   graphData: Record<string, unknown>[],
-  history: ConversationMessage[]
+  history: ConversationMessage[],
+  isSolo: boolean
 ): Promise<string> {
   const messages: Groq.Chat.ChatCompletionMessageParam[] = [
     ...history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
@@ -150,7 +151,7 @@ async function synthesizeAnswer(
     model: MODEL,
     max_tokens: 2048,
     messages: [
-      { role: 'system', content: ANSWER_SYNTHESIS_PROMPT },
+      { role: 'system', content: buildAnswerSynthesisPrompt(isSolo) },
       ...messages,
     ],
   });
@@ -163,7 +164,13 @@ export async function runIncidentAgent(
   orgId: string,
   history: ConversationMessage[] = []
 ): Promise<AgentResult> {
-  let cypher = await generateCypher(question, orgId);
+  const [initialCypher, engineerCount] = await Promise.all([
+    generateCypher(question, orgId),
+    countEngineers(orgId).catch(() => 0),
+  ]);
+  const isSolo = engineerCount <= 1;
+
+  let cypher = initialCypher;
   let graphData: Record<string, unknown>[] = [];
   let queryFailed = false;
 
@@ -180,7 +187,7 @@ export async function runIncidentAgent(
   }
 
   const sources = queryFailed ? [] : extractSources(graphData);
-  const answer = await synthesizeAnswer(question, graphData, history);
+  const answer = await synthesizeAnswer(question, graphData, history, isSolo);
 
   return { answer, cypherQuery: cypher, rawData: graphData, sources };
 }

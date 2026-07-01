@@ -6,6 +6,7 @@ import { getGitHubAuthUrl, exchangeGitHubCode } from '../integrations/github/aut
 import { getJiraAuthUrl, exchangeJiraCode, getAccessibleSites } from '../integrations/jira/auth';
 import { validateDatadogKeys } from '../integrations/datadog/auth';
 import { authMiddleware, AuthedRequest } from '../middleware/auth';
+import { requireRole } from '../middleware/roles';
 
 const router = Router();
 const STATE_TTL = 15 * 60; // 15 minutes in seconds
@@ -13,7 +14,7 @@ const STATE_TTL = 15 * 60; // 15 minutes in seconds
 // ── GitHub ────────────────────────────────────────────────────────────────────
 
 // Returns the GitHub OAuth URL; frontend redirects the browser to it
-router.get('/github/connect', authMiddleware as any, async (req: AuthedRequest, res: Response) => {
+router.get('/github/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
     const state = uuidv4();
@@ -77,7 +78,7 @@ router.get('/github/callback', async (req: Request, res: Response) => {
 
 // ── Jira ──────────────────────────────────────────────────────────────────────
 
-router.get('/jira/connect', authMiddleware as any, async (req: AuthedRequest, res: Response) => {
+router.get('/jira/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
     const state = uuidv4();
@@ -142,7 +143,7 @@ router.get('/jira/callback', async (req: Request, res: Response) => {
 
 // ── Datadog ───────────────────────────────────────────────────────────────────
 
-router.post('/datadog/connect', authMiddleware as any, async (req: AuthedRequest, res: Response) => {
+router.post('/datadog/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   const { apiKey, appKey, site = 'datadoghq.com' } = req.body as {
     apiKey: string;
     appKey: string;

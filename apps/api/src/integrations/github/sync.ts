@@ -17,6 +17,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
 function makeGitHubClient(accessToken: string): AxiosInstance {
   return axios.create({
     baseURL: 'https://api.github.com',
+    timeout: 20_000,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/vnd.github+json',
@@ -29,9 +30,9 @@ export async function syncGitHub(orgId: string, accessToken: string): Promise<nu
   const gh = makeGitHubClient(accessToken);
   let itemsSynced = 0;
 
-  // Fetch repos (single page, up to 100)
+  // Fetch the 20 most recently updated repos
   const { data: repos } = await withRetry(() =>
-    gh.get('/user/repos', { params: { per_page: 100, type: 'all', sort: 'updated' } })
+    gh.get('/user/repos', { params: { per_page: 20, type: 'all', sort: 'updated' } })
   );
 
   for (const repo of repos) {

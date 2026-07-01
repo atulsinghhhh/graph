@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { getSupabase } from '../config/postgres';
 import { authMiddleware, AuthedRequest } from '../middleware/auth';
+import { requireRole } from '../middleware/roles';
 import { triggerGitHubSync } from '../workers/github.worker';
 import { triggerJiraSync } from '../workers/jira.worker';
 import { triggerDatadogSync } from '../workers/datadog.worker';
@@ -8,7 +9,7 @@ import { triggerDatadogSync } from '../workers/datadog.worker';
 const router = Router();
 router.use(authMiddleware as any);
 
-router.post('/start', async (req: AuthedRequest, res: Response) => {
+router.post('/start', requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
     const supabase = getSupabase();

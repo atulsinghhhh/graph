@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { GitBranch, CheckCircle2 } from 'lucide-react';
 import api from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface Props {
   provider: 'github' | 'jira' | 'datadog';
@@ -10,9 +15,9 @@ interface Props {
 }
 
 const META = {
-  github: { label: 'GitHub', desc: 'Repos, PRs, Deployments, Engineers', color: 'bg-zinc-900' },
-  jira: { label: 'Jira', desc: 'Bugs, Incidents, Assignees', color: 'bg-blue-600' },
-  datadog: { label: 'Datadog', desc: 'Monitors, Alerts', color: 'bg-purple-600' },
+  github: { label: 'GitHub', desc: 'Repos, PRs, Deployments, Engineers', dot: 'bg-foreground' },
+  jira: { label: 'Jira', desc: 'Bugs, Incidents, Assignees', dot: 'bg-blue-500' },
+  datadog: { label: 'Datadog', desc: 'Monitors, Alerts', dot: 'bg-purple-500' },
 };
 
 export default function ConnectCard({ provider, connected, lastSyncedAt }: Props) {
@@ -29,7 +34,9 @@ export default function ConnectCard({ provider, connected, lastSyncedAt }: Props
     setOauthError('');
     try {
       const { data } = await api.get(`/api/integrations/${provider}/connect`);
-      window.location.href = data.url;
+      if (!data.url) throw new Error('No OAuth URL returned from server');
+      // Full page navigation to provider OAuth — browser will return via callback
+      window.location.assign(data.url);
     } catch (err: any) {
       setOauthError(err.response?.data?.error ?? 'Failed to start OAuth. Is the API running?');
       setLoading(false);
@@ -54,69 +61,63 @@ export default function ConnectCard({ provider, connected, lastSyncedAt }: Props
   }
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-5 flex flex-col gap-4">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={`inline-block w-2.5 h-2.5 rounded-full ${meta.color}`} />
-            <span className="font-semibold text-zinc-900">{meta.label}</span>
+    <Card>
+      <CardContent className="py-5 flex flex-col gap-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`inline-block w-2.5 h-2.5 rounded-full ${meta.dot}`} />
+              <span className="font-semibold text-foreground">{meta.label}</span>
+            </div>
+            <p className="text-sm text-muted-foreground">{meta.desc}</p>
           </div>
-          <p className="text-sm text-zinc-500">{meta.desc}</p>
-        </div>
-        {connected && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-            Connected
-          </span>
-        )}
-      </div>
-
-      {lastSyncedAt && (
-        <p className="text-xs text-zinc-400">
-          Last synced {new Date(lastSyncedAt).toLocaleString()}
-        </p>
-      )}
-
-      {provider === 'datadog' && !connected ? (
-        <form onSubmit={connectDatadog} className="flex flex-col gap-2">
-          <input
-            required value={ddKey} onChange={e => setDdKey(e.target.value)}
-            placeholder="API Key (DD-API-KEY)"
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-zinc-900"
-          />
-          <input
-            required value={ddAppKey} onChange={e => setDdAppKey(e.target.value)}
-            placeholder="Application Key"
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-zinc-900"
-          />
-          <input
-            value={ddSite} onChange={e => setDdSite(e.target.value)}
-            placeholder="Site (e.g. datadoghq.com)"
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-zinc-900"
-          />
-          {ddError && <p className="text-xs text-red-600">{ddError}</p>}
-          <button
-            type="submit" disabled={loading}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Connecting…' : 'Connect Datadog'}
-          </button>
-        </form>
-      ) : !connected ? (
-        <>
-          {oauthError && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {oauthError}
-            </p>
+          {connected && (
+            <Badge variant="success" className="gap-1">
+              <CheckCircle2 className="size-3" />
+              Connected
+            </Badge>
           )}
-          <button
-            onClick={connectOAuth} disabled={loading}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Redirecting…' : `Connect ${meta.label}`}
-          </button>
-        </>
-      ) : null}
-    </div>
+        </div>
+
+        {lastSyncedAt && (
+          <p className="text-xs text-muted-foreground">
+            Last synced {new Date(lastSyncedAt).toLocaleString()}
+          </p>
+        )}
+
+        {provider === 'datadog' && !connected ? (
+          <form onSubmit={connectDatadog} className="flex flex-col gap-2">
+            <Input
+              required value={ddKey} onChange={e => setDdKey(e.target.value)}
+              placeholder="API Key (DD-API-KEY)"
+            />
+            <Input
+              required value={ddAppKey} onChange={e => setDdAppKey(e.target.value)}
+              placeholder="Application Key"
+            />
+            <Input
+              value={ddSite} onChange={e => setDdSite(e.target.value)}
+              placeholder="Site (e.g. datadoghq.com)"
+            />
+            {ddError && <p className="text-xs text-destructive">{ddError}</p>}
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Connecting…' : 'Connect Datadog'}
+            </Button>
+          </form>
+        ) : !connected ? (
+          <>
+            {oauthError && (
+              <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+                {oauthError}
+              </p>
+            )}
+            <Button onClick={connectOAuth} disabled={loading}>
+              {provider === 'github' && <GitBranch />}
+              {loading ? 'Redirecting…' : `Connect ${meta.label}`}
+            </Button>
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

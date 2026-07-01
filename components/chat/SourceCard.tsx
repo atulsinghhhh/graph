@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface Source {
   type: string;
@@ -8,13 +9,13 @@ interface Source {
 }
 
 const TYPE_COLOR: Record<string, string> = {
-  Incident: 'bg-red-50 text-red-700 border-red-200',
-  Deployment: 'bg-blue-50 text-blue-700 border-blue-200',
-  PullRequest: 'bg-purple-50 text-purple-700 border-purple-200',
-  Engineer: 'bg-amber-50 text-amber-700 border-amber-200',
-  Bug: 'bg-orange-50 text-orange-700 border-orange-200',
-  Alert: 'bg-pink-50 text-pink-700 border-pink-200',
-  Service: 'bg-teal-50 text-teal-700 border-teal-200',
+  Incident: 'bg-red-500/10 text-red-400 border-red-500/20',
+  Deployment: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  PullRequest: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  Engineer: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  Bug: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  Alert: 'bg-pink-500/10 text-pink-400 border-pink-500/20',
+  Service: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
 };
 
 function SourceLink({ source }: { source: Source }) {
@@ -38,9 +39,9 @@ function SourceLink({ source }: { source: Source }) {
 }
 
 export default function SourceCard({ source }: { source: Source }) {
-  const color = TYPE_COLOR[source.type] ?? 'bg-zinc-50 text-zinc-700 border-zinc-200';
+  const color = TYPE_COLOR[source.type] ?? 'bg-muted text-muted-foreground border-border';
   return (
-    <div className={`inline-flex items-center gap-1.5 border rounded-lg px-2.5 py-1 text-xs ${color}`}>
+    <div className={cn('inline-flex items-center gap-1.5 border rounded-md px-2.5 py-1 text-xs', color)}>
       <span className="font-medium">{source.type}</span>
       <span className="opacity-60">·</span>
       <SourceLink source={source} />

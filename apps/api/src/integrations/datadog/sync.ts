@@ -1,52 +1,6 @@
 import axios from 'axios';
 import { upsertNode } from '../../graph/queries';
 
-// ── Mock data (only used when DATADOG_MOCK_MODE=true) ────────────────────────
-
-const MOCK_MONITORS = [
-  {
-    id: 5001,
-    name: 'checkout.error_rate',
-    message: 'Checkout error rate > 5% for 5 minutes. Investigate payment-service and checkout-api.',
-    overall_state: 'Alert',
-    overall_state_modified: '2026-05-15T12:35:00Z',
-    priority: 1,
-  },
-  {
-    id: 5002,
-    name: 'payment.p99_latency',
-    message: 'Payment service p99 latency > 3000ms for 10 minutes.',
-    overall_state: 'Alert',
-    overall_state_modified: '2026-05-15T12:45:00Z',
-    priority: 2,
-  },
-  {
-    id: 5003,
-    name: 'api.5xx_rate',
-    message: 'API gateway 5xx rate > 1% — resolved after rollback.',
-    overall_state: 'OK',
-    overall_state_modified: '2026-05-14T22:45:00Z',
-    priority: 2,
-  },
-];
-
-async function runMockDatadogSync(orgId: string): Promise<number> {
-  let itemsSynced = 0;
-  for (const monitor of MOCK_MONITORS) {
-    await upsertNode('Alert', `datadog:monitor:${monitor.id}`, orgId, {
-      datadogId: String(monitor.id),
-      metric: monitor.name,
-      message: monitor.message,
-      firedAt: new Date(monitor.overall_state_modified).toISOString(),
-      status: monitor.overall_state,
-      severity: mapDdPriority(monitor.priority),
-      source: 'datadog',
-    });
-    itemsSynced++;
-  }
-  return itemsSynced;
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -84,11 +38,6 @@ export async function syncDatadog(
   appKey: string,
   site: string
 ): Promise<number> {
-  if (process.env.DATADOG_MOCK_MODE === 'true') {
-    console.log('[Datadog] Mock mode — creating Alert nodes only');
-    return runMockDatadogSync(orgId);
-  }
-
   const base = `https://api.${site}`;
   const headers = { 'DD-API-KEY': apiKey, 'DD-APPLICATION-KEY': appKey };
   let itemsSynced = 0;

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Incident Platform',
-  description: 'AI-powered incident investigation',
+  title: 'Graph — AI Incident Investigation',
+  description: 'AI-powered incident investigation over a live graph of your deployments, PRs, engineers, and incidents.',
 };
 
 export default function RootLayout({
@@ -25,9 +26,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`dark scroll-smooth ${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={{ colorScheme: 'dark' }}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-background text-foreground">
+        {children}
+        <Toaster theme="dark" position="bottom-right" richColors />
+      </body>
     </html>
   );
 }
