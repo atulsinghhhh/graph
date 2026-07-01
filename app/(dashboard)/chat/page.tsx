@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ArrowUp } from 'lucide-react';
 import MessageBubble from '@/components/chat/MessageBubble';
 import api from '@/lib/api';
@@ -35,9 +36,11 @@ const ORG_SUGGESTIONS = [
   'Who was assigned to recent incidents?',
 ];
 
-export default function ChatPage() {
+function ChatPageInner() {
+  const searchParams = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
+  // Pre-fill from links like IncidentGraph's "Ask AI about this" (?q=...).
+  const [input, setInput] = useState(() => searchParams.get('q') ?? '');
   const [loading, setLoading] = useState(false);
   const sessionId = useRef(crypto.randomUUID());
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -52,6 +55,13 @@ export default function ChatPage() {
     api.get('/api/organizations/me')
       .then(r => setIsSolo(!!r.data.isSolo))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get('q')) {
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function send(question: string) {
@@ -153,5 +163,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={null}>
+      <ChatPageInner />
+    </Suspense>
   );
 }

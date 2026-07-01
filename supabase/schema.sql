@@ -140,3 +140,30 @@ CREATE POLICY "chat_messages_insert" ON public.chat_messages
 -- org_invites: members can view their org's invites (writes go through the service-role API)
 CREATE POLICY "org_invites_select" ON public.org_invites
   FOR SELECT USING (org_id = public.current_user_org_id());
+
+-- ============================================================
+-- Deep GitHub monitoring + additional integrations (slack, pagerduty, linear)
+-- ============================================================
+
+ALTER TABLE public.integrations DROP CONSTRAINT IF EXISTS integrations_provider_check;
+ALTER TABLE public.integrations ADD CONSTRAINT integrations_provider_check
+  CHECK (provider IN ('github', 'jira', 'datadog', 'slack', 'pagerduty', 'linear'));
+ALTER TABLE public.integrations ADD COLUMN IF NOT EXISTS sync_counts jsonb NOT NULL DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS public.github_hourly_reports (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  scanned_at    timestamptz NOT NULL DEFAULT now(),
+  repos_scanned int NOT NULL DEFAULT 0,
+  issues_found  jsonb NOT NULL DEFAULT '[]',
+  secrets_found int NOT NULL DEFAULT 0,
+  ci_failures   int NOT NULL DEFAULT 0,
+  pr_issues     int NOT NULL DEFAULT 0,
+  repo_health   int NOT NULL DEFAULT 0,
+  summary_text  text
+);
+
+ALTER TABLE public.github_hourly_reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "github_hourly_reports_select" ON public.github_hourly_reports
+  FOR SELECT USING (org_id = public.current_user_org_id());

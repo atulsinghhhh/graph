@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Timeline from '@/components/incidents/Timeline';
+import IncidentGraph, { BreakPoint } from '@/components/incidents/IncidentGraph';
 import api from '@/lib/api';
 
 interface IncidentCtx {
@@ -28,6 +29,13 @@ interface IncidentCtx {
   bugs: Array<{ id: string; jiraId?: string; title?: string; priority?: string; url?: string }>;
   alerts: Array<{ id: string; metric?: string; message?: string; firedAt?: string; status?: string }>;
   services: Array<{ id: string; name?: string }>;
+  breakPoint: BreakPoint;
+  breakNodeId: string | null;
+  cascadeNodes: string[];
+  fix: {
+    fixDeployment: { id: string; version?: string; environment?: string; deployedAt?: string };
+    fixPullRequest: { id: string; githubId?: string; title?: string; url?: string; mergedAt?: string } | null;
+  } | null;
 }
 
 interface TimelineEvent {
@@ -151,6 +159,10 @@ export default function IncidentDetailPage() {
             <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded">{inc.source}</span>
           )}
         </div>
+      </div>
+
+      <div className="mb-5">
+        <IncidentGraph incident={ctx} breakPoint={ctx.breakPoint} cascadeNodes={ctx.cascadeNodes} />
       </div>
 
       {events.length > 0 && (

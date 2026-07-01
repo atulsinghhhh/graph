@@ -209,3 +209,15 @@ const ORG_ATTRIBUTION_RULE = `
 export function buildAnswerSynthesisPrompt(isSolo: boolean): string {
   return ANSWER_SYNTHESIS_BASE + (isSolo ? SOLO_ATTRIBUTION_RULE : ORG_ATTRIBUTION_RULE);
 }
+
+const GITHUB_SUMMARY_SYSTEM_PROMPT = `You summarize GitHub deep-scan results for an engineering team.
+Be specific about which repos have issues and what to fix first.
+Prioritize by severity: secrets > ci_failures > pr_issues > repo_health.
+Never invent data not present in the issues list. If the list is empty, say the repos are healthy.
+Keep it to one tight paragraph, 3-6 sentences.`;
+
+export function buildGithubSummaryUserPrompt(issues: unknown[]): string {
+  return `Summarize these GitHub scan results for an engineering team:\n${JSON.stringify(issues)}`;
+}
+
+export { GITHUB_SUMMARY_SYSTEM_PROMPT };

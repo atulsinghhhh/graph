@@ -2,15 +2,9 @@ import Groq from 'groq-sdk';
 import neo4j from 'neo4j-driver';
 import { runQuery, countEngineers } from '../graph/queries';
 import { CYPHER_GENERATION_PROMPT, buildAnswerSynthesisPrompt } from './prompts';
+import { getGroqClient as getClient } from './groq-client';
 
 const MODEL = 'llama-3.3-70b-versatile';
-
-function getClient(): Groq {
-  if (!process.env.GROQ_API_KEY) {
-    throw new Error('GROQ_API_KEY is not set — add it to apps/api/.env');
-  }
-  return new Groq({ apiKey: process.env.GROQ_API_KEY });
-}
 
 interface ConversationMessage {
   role: 'user' | 'assistant';

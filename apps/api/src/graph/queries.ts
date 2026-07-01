@@ -4,7 +4,7 @@ export { runQuery };
 
 const VALID_LABELS = new Set([
   'Deployment', 'PullRequest', 'Engineer', 'Service', 'Incident', 'Bug', 'Alert',
-  'SecretAlert',
+  'SecretAlert', 'WorkflowRun', 'SecurityIncident', 'Message',
 ]);
 
 const VALID_REL_TYPES = new Set([
@@ -12,6 +12,8 @@ const VALID_REL_TYPES = new Set([
   'TRIGGERED', 'TRIGGERED_ALERT', 'LINKED_TO', 'FIRED', 'CHANGED',
   'ASSIGNED_TO', 'HAS_ALERT', 'RESOLVED_BY', 'REPORTED_BY',
   'HAS_SECRET_ALERT', 'INTRODUCED_SECRET', 'PUSHED_SECRET', 'POSSIBLY_TRIGGERED',
+  'FAILED_ON', 'TRIGGERED_BY', 'CAUSED', 'FOUND_IN', 'CAUSED_BY', 'AFFECTS',
+  'HAS_ISSUE', 'MENTIONS',
 ]);
 
 function assertLabel(label: string): void {
