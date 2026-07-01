@@ -46,9 +46,9 @@ jiraQueue.process(async (job) => {
       throw new Error('Jira token expired — reconnect Jira from the integrations page');
     }
 
-    let itemsSynced: number;
+    let syncResult: { itemsSynced: number; projects: number };
     try {
-      itemsSynced = await syncJira(orgId, accessToken, cloudId, siteUrl);
+      syncResult = await syncJira(orgId, accessToken, cloudId, siteUrl);
     } catch (apiErr: any) {
       const status = apiErr.response?.status;
       if (status === 401 || status === 403 || status === 410) {
@@ -61,11 +61,14 @@ jiraQueue.process(async (job) => {
     await Promise.all([
       supabase
         .from('sync_jobs')
-        .update({ status: 'done', items_synced: itemsSynced, finished_at: new Date().toISOString() })
+        .update({ status: 'done', items_synced: syncResult.itemsSynced, finished_at: new Date().toISOString() })
         .eq('id', syncJobId),
       supabase
         .from('integrations')
-        .update({ last_synced_at: new Date().toISOString() })
+        .update({
+          last_synced_at: new Date().toISOString(),
+          sync_counts: { projects: syncResult.projects, issues: syncResult.itemsSynced },
+        })
         .eq('id', integrationId),
     ]);
 

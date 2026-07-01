@@ -32,12 +32,17 @@ function mapDdPriority(p: number | null | undefined): 'critical' | 'high' | 'med
 
 // ── Real sync ─────────────────────────────────────────────────────────────────
 
+export interface DatadogSyncResult {
+  itemsSynced: number;
+  monitors: number;
+}
+
 export async function syncDatadog(
   orgId: string,
   apiKey: string,
   appKey: string,
   site: string
-): Promise<number> {
+): Promise<DatadogSyncResult> {
   const base = `https://api.${site}`;
   const headers = { 'DD-API-KEY': apiKey, 'DD-APPLICATION-KEY': appKey };
   let itemsSynced = 0;
@@ -66,5 +71,5 @@ export async function syncDatadog(
     await sleep(100);
   }
 
-  return itemsSynced;
+  return { itemsSynced, monitors: (monitors as any[]).length };
 }

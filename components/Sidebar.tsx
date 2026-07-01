@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Zap,
   ShieldAlert,
+  GitBranch,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils';
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/integrations', label: 'Integrations', icon: Plug },
+  { href: '/github/report', label: 'GitHub Report', icon: GitBranch },
   { href: '/integrations/team', label: 'Team', icon: Users },
   { href: '/sync', label: 'Sync', icon: RefreshCw },
   { href: '/graph', label: 'Graph', icon: Share2 },
@@ -42,6 +44,7 @@ export default function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
   const router   = useRouter();
   const [openSecrets, setOpenSecrets] = useState(0);
+  const [openGithubSecrets, setOpenGithubSecrets] = useState(0);
   const [showTeamLink, setShowTeamLink] = useState(false);
 
   // Poll open secret alert count every 60s
@@ -52,6 +55,18 @@ export default function Sidebar({ email }: { email: string }) {
           const n = (r.data as any[]).filter((row: any) => row.alert?.state === 'open').length;
           setOpenSecrets(n);
         })
+        .catch(() => {});
+    }
+    fetchCount();
+    const id = setInterval(fetchCount, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Poll open GitHub deep-scan security incidents every 60s
+  useEffect(() => {
+    function fetchCount() {
+      api.get('/api/github/secrets')
+        .then(r => setOpenGithubSecrets((r.data as any[]).length))
         .catch(() => {});
     }
     fetchCount();
@@ -90,6 +105,7 @@ export default function Sidebar({ email }: { email: string }) {
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           const isSecrets = href === '/secrets';
+          const isGithubReport = href === '/github/report';
           return (
             <Link
               key={href}
@@ -109,6 +125,11 @@ export default function Sidebar({ email }: { email: string }) {
               {isSecrets && openSecrets > 0 && (
                 <Badge variant="destructive" className="h-5 min-w-5 justify-center px-1 rounded-full">
                   {openSecrets}
+                </Badge>
+              )}
+              {isGithubReport && openGithubSecrets > 0 && (
+                <Badge variant="destructive" className="h-5 min-w-5 justify-center px-1 rounded-full">
+                  {openGithubSecrets}
                 </Badge>
               )}
             </Link>

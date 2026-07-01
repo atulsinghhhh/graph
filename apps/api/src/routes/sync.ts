@@ -5,6 +5,9 @@ import { requireRole } from '../middleware/roles';
 import { triggerGitHubSync } from '../workers/github.worker';
 import { triggerJiraSync } from '../workers/jira.worker';
 import { triggerDatadogSync } from '../workers/datadog.worker';
+import { triggerSlackSync } from '../workers/slack.worker';
+import { triggerPagerDutySync } from '../workers/pagerduty.worker';
+import { triggerLinearSync } from '../workers/linear.worker';
 
 const router = Router();
 router.use(authMiddleware as any);
@@ -37,6 +40,15 @@ router.post('/start', requireRole('owner', 'admin'), async (req: AuthedRequest, 
       } else if (integration.provider === 'datadog') {
         const result = await triggerDatadogSync(orgId, integration.id);
         triggered.push({ provider: 'datadog', syncJobId: result.syncJobId });
+      } else if (integration.provider === 'slack') {
+        const result = await triggerSlackSync(orgId, integration.id);
+        triggered.push({ provider: 'slack', syncJobId: result.syncJobId });
+      } else if (integration.provider === 'pagerduty') {
+        const result = await triggerPagerDutySync(orgId, integration.id);
+        triggered.push({ provider: 'pagerduty', syncJobId: result.syncJobId });
+      } else if (integration.provider === 'linear') {
+        const result = await triggerLinearSync(orgId, integration.id);
+        triggered.push({ provider: 'linear', syncJobId: result.syncJobId });
       }
     }
 

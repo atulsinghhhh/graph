@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-type GraphState = 'healthy' | 'broken' | 'resolved';
+export type GraphState = 'healthy' | 'broken' | 'resolved';
 
-interface Node {
+export interface BreakGraphNode {
   id: string;
   label: string;
   sub: string;
@@ -12,14 +12,14 @@ interface Node {
   y: number;
 }
 
-interface Edge {
+export interface BreakGraphEdge {
   from: string;
   to: string;
 }
 
 const CANVAS_HEIGHT = 390;
 
-const NODES: Node[] = [
+const DEMO_NODES: BreakGraphNode[] = [
   { id: 'eng', label: 'Engineer', sub: 'Alice Chen', x: 0.5, y: 0.08 },
   { id: 'pr', label: 'Pull request', sub: 'PR #421', x: 0.5, y: 0.28 },
   { id: 'deploy', label: 'Deployment', sub: 'v1.4.2 · prod', x: 0.5, y: 0.49 },
@@ -28,13 +28,15 @@ const NODES: Node[] = [
   { id: 'incident', label: 'Incident', sub: 'INC-891', x: 0.73, y: 0.9 },
 ];
 
-const EDGES: Edge[] = [
+const DEMO_EDGES: BreakGraphEdge[] = [
   { from: 'eng', to: 'pr' },
   { from: 'pr', to: 'deploy' },
   { from: 'deploy', to: 'service' },
   { from: 'service', to: 'alert' },
   { from: 'service', to: 'incident' },
 ];
+
+const DEMO_CASCADE_IDS = ['deploy', 'service', 'alert', 'incident'];
 
 const HEALTHY_TEXT = 'Graph is healthy. No incidents detected. Click below to simulate a production incident.';
 const BREAK_TEXT =
@@ -119,25 +121,27 @@ function drawGraph(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
+  nodes: BreakGraphNode[],
+  edges: BreakGraphEdge[],
   state: GraphState,
+  breakNodeId: string | null,
+  cascadeIds: string[],
   shakeOffsetX: number,
   theme: Theme
 ) {
   ctx.clearRect(0, 0, W, H);
 
-  const breakNodeId = state === 'broken' ? 'pr' : null;
-  const cascadeIds = state === 'broken' ? ['deploy', 'service', 'alert', 'incident'] : [];
-
-  function nx(n: Node) {
+  function nx(n: BreakGraphNode) {
     return n.x * W + (n.id === breakNodeId ? shakeOffsetX : 0);
   }
-  function ny(n: Node) {
+  function ny(n: BreakGraphNode) {
     return n.y * H;
   }
 
-  EDGES.forEach(e => {
-    const fn = NODES.find(n => n.id === e.from)!;
-    const tn = NODES.find(n => n.id === e.to)!;
+  edges.forEach(e => {
+    const fn = nodes.find(n => n.id === e.from);
+    const tn = nodes.find(n => n.id === e.to);
+    if (!fn || !tn) return;
     const fx = nx(fn), fy = ny(fn);
     const tx = nx(tn), ty = ny(tn);
     const dx = tx - fx, dy = ty - fy;
@@ -178,7 +182,7 @@ function drawGraph(
     ctx.fill();
   });
 
-  NODES.forEach(n => {
+  nodes.forEach(n => {
     const x = nx(n), y = ny(n);
     const nw = 148, nh = 48, rx = 8;
     const nx0 = x - nw / 2, ny0 = y - nh / 2;
@@ -217,7 +221,29 @@ function drawGraph(
   });
 }
 
-export default function BreakGraph() {
+interface BreakGraphProps {
+  /** Default true — renders the interactive marketing demo (Fire/Deploy/Reset + typing AI bubble). */
+  interactive?: boolean;
+  /** Static mode only: real nodes to draw (falls back to the demo shape if omitted). */
+  nodes?: BreakGraphNode[];
+  edges?: BreakGraphEdge[];
+  /** Static mode only: the real current state to render, drawn once (no shake/typing). */
+  state?: GraphState;
+  breakNodeId?: string | null;
+  cascadeIds?: string[];
+  /** Static mode only: text shown next to the status dot. */
+  statusLabel?: string;
+}
+
+export default function BreakGraph({
+  interactive = true,
+  nodes: staticNodes,
+  edges: staticEdges,
+  state: staticState = 'healthy',
+  breakNodeId: staticBreakNodeId = null,
+  cascadeIds: staticCascadeIds = [],
+  statusLabel,
+}: BreakGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sizeRef = useRef({ W: 0, H: CANVAS_HEIGHT });
   const themeRef = useRef<Theme>({
@@ -233,13 +259,29 @@ export default function BreakGraph() {
   const shakeStartRef = useRef<number | null>(null);
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [graphState, setGraphState] = useState<GraphState>('healthy');
+  const [demoState, setDemoState] = useState<GraphState>('healthy');
   const [aiText, setAiText] = useState(HEALTHY_TEXT);
   const [pills, setPills] = useState<Array<{ text: string; type: 'red' | 'amber' | 'green' }>>([]);
 
+  const nodes = interactive ? DEMO_NODES : (staticNodes ?? DEMO_NODES);
+  const edges = interactive ? DEMO_EDGES : (staticEdges ?? DEMO_EDGES);
+  const graphState = interactive ? demoState : staticState;
+  const breakNodeId = interactive ? (demoState === 'broken' ? 'pr' : null) : staticBreakNodeId;
+  const cascadeIds = interactive ? (demoState === 'broken' ? DEMO_CASCADE_IDS : []) : staticCascadeIds;
+
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  const breakNodeIdRef = useRef(breakNodeId);
+  const cascadeIdsRef = useRef(cascadeIds);
+
   useEffect(() => {
     graphStateRef.current = graphState;
-  }, [graphState]);
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+    breakNodeIdRef.current = breakNodeId;
+    cascadeIdsRef.current = cascadeIds;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphState, nodes, edges, breakNodeId, cascadeIds]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -266,6 +308,21 @@ export default function BreakGraph() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
+    if (!interactive) {
+      // Static mode: draw once, redraw only on resize — no animation loop.
+      const draw = () => {
+        const { W, H } = sizeRef.current;
+        drawGraph(ctx!, W, H, nodesRef.current, edgesRef.current, graphStateRef.current, breakNodeIdRef.current, cascadeIdsRef.current, 0, themeRef.current);
+      };
+      draw();
+      const onResize = () => draw();
+      window.addEventListener('resize', onResize);
+      return () => {
+        window.removeEventListener('resize', resizeCanvas);
+        window.removeEventListener('resize', onResize);
+      };
+    }
+
     let raf: number;
     function loop(t: number) {
       const { W, H } = sizeRef.current;
@@ -279,7 +336,7 @@ export default function BreakGraph() {
           shakeStartRef.current = null;
         }
       }
-      drawGraph(ctx!, W, H, graphStateRef.current, shakeOffsetX, themeRef.current);
+      drawGraph(ctx!, W, H, nodesRef.current, edgesRef.current, graphStateRef.current, breakNodeIdRef.current, cascadeIdsRef.current, shakeOffsetX, themeRef.current);
       raf = requestAnimationFrame(loop);
     }
     raf = requestAnimationFrame(loop);
@@ -288,7 +345,19 @@ export default function BreakGraph() {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactive]);
+
+  // Static mode needs an immediate redraw whenever the real data changes (new report loaded).
+  useEffect(() => {
+    if (interactive) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx) return;
+    const { W, H } = sizeRef.current;
+    drawGraph(ctx, W, H, nodes, edges, graphState, breakNodeId, cascadeIds, 0, themeRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactive, graphState, breakNodeId, JSON.stringify(cascadeIds), JSON.stringify(nodes), JSON.stringify(edges)]);
 
   useEffect(() => {
     return () => {
@@ -312,14 +381,14 @@ export default function BreakGraph() {
   }
 
   function fireIncident() {
-    setGraphState('broken');
+    setDemoState('broken');
     setPills([]);
     shakeStartRef.current = performance.now();
     typeMessage(BREAK_TEXT, () => setPills(BREAK_PILLS));
   }
 
   function resolveIncident() {
-    setGraphState('resolved');
+    setDemoState('resolved');
     setPills([]);
     typeMessage(RESOLVE_TEXT, () => setPills(RESOLVE_PILLS));
   }
@@ -330,16 +399,21 @@ export default function BreakGraph() {
       typingIntervalRef.current = null;
     }
     shakeStartRef.current = null;
-    setGraphState('healthy');
+    setDemoState('healthy');
     setAiText(HEALTHY_TEXT);
     setPills([]);
   }
+
+  const defaultStatusLabel =
+    graphState === 'healthy' ? 'All systems healthy'
+    : graphState === 'broken' ? 'Incident detected — graph broken'
+    : 'Incident resolved';
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
-          Live graph — production
+          {interactive ? 'Live graph — production' : 'Current graph state'}
         </span>
         <div className="flex items-center gap-2 text-xs">
           <span
@@ -351,66 +425,64 @@ export default function BreakGraph() {
                   : 'bg-success'
             }`}
           />
-          <span className="text-muted-foreground">
-            {graphState === 'healthy'
-              ? 'All systems healthy'
-              : graphState === 'broken'
-                ? 'Incident detected — graph broken'
-                : 'Incident resolved'}
-          </span>
+          <span className="text-muted-foreground">{statusLabel ?? defaultStatusLabel}</span>
         </div>
       </div>
 
       <canvas ref={canvasRef} className="w-full" />
 
-      <div className="mt-3 bg-muted rounded-lg px-4 py-3 text-sm text-foreground leading-relaxed whitespace-pre-line">
-        {aiText}
-        {pills.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {pills.map((p, i) => (
-              <span
-                key={i}
-                className={`text-xs px-2.5 py-0.5 rounded-full border ${
-                  p.type === 'red'
-                    ? 'bg-destructive/10 border-destructive/30 text-destructive'
-                    : p.type === 'amber'
-                      ? 'bg-warning/10 border-warning/30 text-warning'
-                      : 'bg-success/10 border-success/30 text-success'
-                }`}
-              >
-                {p.text}
-              </span>
-            ))}
+      {interactive && (
+        <>
+          <div className="mt-3 bg-muted rounded-lg px-4 py-3 text-sm text-foreground leading-relaxed whitespace-pre-line">
+            {aiText}
+            {pills.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {pills.map((p, i) => (
+                  <span
+                    key={i}
+                    className={`text-xs px-2.5 py-0.5 rounded-full border ${
+                      p.type === 'red'
+                        ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                        : p.type === 'amber'
+                          ? 'bg-warning/10 border-warning/30 text-warning'
+                          : 'bg-success/10 border-success/30 text-success'
+                    }`}
+                  >
+                    {p.text}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <div className="flex gap-2 mt-3">
-        {graphState === 'healthy' && (
-          <button
-            onClick={fireIncident}
-            className="text-xs px-3 py-1.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30 hover:bg-destructive/20 transition-colors"
-          >
-            Fire production incident
-          </button>
-        )}
-        {graphState === 'broken' && (
-          <button
-            onClick={resolveIncident}
-            className="text-xs px-3 py-1.5 rounded-md bg-success/10 text-success border border-success/30 hover:bg-success/20 transition-colors"
-          >
-            Deploy fix
-          </button>
-        )}
-        {graphState !== 'healthy' && (
-          <button
-            onClick={reset}
-            className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors ml-auto"
-          >
-            Reset
-          </button>
-        )}
-      </div>
+          <div className="flex gap-2 mt-3">
+            {demoState === 'healthy' && (
+              <button
+                onClick={fireIncident}
+                className="text-xs px-3 py-1.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30 hover:bg-destructive/20 transition-colors"
+              >
+                Fire production incident
+              </button>
+            )}
+            {demoState === 'broken' && (
+              <button
+                onClick={resolveIncident}
+                className="text-xs px-3 py-1.5 rounded-md bg-success/10 text-success border border-success/30 hover:bg-success/20 transition-colors"
+              >
+                Deploy fix
+              </button>
+            )}
+            {demoState !== 'healthy' && (
+              <button
+                onClick={reset}
+                className="text-xs px-3 py-1.5 rounded-md border border-border hover:bg-accent transition-colors ml-auto"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

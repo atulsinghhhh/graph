@@ -2,27 +2,27 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { ArrowRight } from 'lucide-react';
-import ConnectCard from '@/components/integrations/ConnectCard';
+import ConnectCard, { type Provider, type ConnectionStatus } from '@/components/integrations/ConnectCard';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
-interface IntegrationStatus {
+const PROVIDERS: Provider[] = ['github', 'jira', 'datadog', 'slack', 'pagerduty', 'linear'];
+
+interface StatusEntry {
+  status: ConnectionStatus;
   connected: boolean;
   lastSyncedAt: string | null;
+  syncCounts: Record<string, number>;
 }
 
-interface Status {
-  github: IntegrationStatus;
-  jira: IntegrationStatus;
-  datadog: IntegrationStatus;
-}
+type Status = Record<Provider, StatusEntry>;
 
 export default function IntegrationsPage() {
   const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
-  const [banner, setBanner] = useState('');
 
   function fetchStatus() {
     api.get('/api/integrations/status')
@@ -35,10 +35,12 @@ export default function IntegrationsPage() {
     const connected = searchParams.get('connected');
     const error = searchParams.get('error');
     if (connected) {
-      setBanner(`${connected} connected successfully`);
-      fetchStatus(); // refresh status immediately so badge shows
+      toast.success(`${connected.charAt(0).toUpperCase() + connected.slice(1)} connected. Starting first sync…`);
+      fetchStatus();
     }
-    if (error) setBanner(`Error: ${error.replace(/_/g, ' ')}`);
+    if (error) {
+      toast.error(`Connection failed: ${error.replace(/_/g, ' ')}`);
+    }
     if (connected || error) {
       window.history.replaceState({}, '', '/integrations');
     }
@@ -53,28 +55,28 @@ export default function IntegrationsPage() {
     : 0;
 
   return (
-    <div className="p-8 max-w-2xl">
-      <h1 className="text-xl font-semibold text-foreground mb-1">Integrations</h1>
-      <p className="text-sm text-muted-foreground mb-6">Connect your tools to build the incident graph.</p>
-
-      {banner && (
-        <div className={cn(
-          'mb-5 rounded-md px-4 py-3 text-sm border',
-          banner.startsWith('Error')
-            ? 'bg-destructive/10 text-destructive border-destructive/20'
-            : 'bg-success/10 text-success border-success/20'
-        )}>
-          {banner}
+    <div className="p-8 max-w-4xl">
+      <div className="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground mb-1">Integrations</h1>
+          <p className="text-sm text-muted-foreground">
+            Connect your tools once. Your whole team shares the connection.
+          </p>
         </div>
-      )}
+        <Badge variant="outline" className="shrink-0 text-sm px-3 py-1">
+          Connected: {connectedCount}/6
+        </Badge>
+      </div>
 
-      <div className="flex flex-col gap-4">
-        {(['github', 'jira', 'datadog'] as const).map(p => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {PROVIDERS.map(p => (
           <ConnectCard
             key={p}
             provider={p}
-            connected={status?.[p]?.connected ?? false}
+            status={status?.[p]?.status ?? 'not_connected'}
             lastSyncedAt={status?.[p]?.lastSyncedAt ?? null}
+            syncCounts={status?.[p]?.syncCounts ?? {}}
+            onChanged={fetchStatus}
           />
         ))}
       </div>

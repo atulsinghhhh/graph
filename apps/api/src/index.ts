@@ -13,11 +13,17 @@ import graphRouter from './routes/graph';
 import secretsRouter from './routes/secrets';
 import insightsRouter from './routes/insights';
 import organizationsRouter from './routes/organizations';
+import githubRouter from './routes/github';
 import './workers/github.worker';
 import './workers/jira.worker';
 import './workers/datadog.worker';
+import './workers/slack.worker';
+import './workers/pagerduty.worker';
+import './workers/linear.worker';
+import './workers/github-deep-scan.worker';
 import './workers/scheduler';
 import { registerScheduler } from './workers/scheduler';
+import { registerGithubDeepScanScheduler } from './workers/github-deep-scan.worker';
 
 const app = express();
 
@@ -39,6 +45,7 @@ app.use('/api/graph', graphRouter);
 app.use('/api/secrets', secretsRouter);
 app.use('/api/insights', insightsRouter);
 app.use('/api/organizations', organizationsRouter);
+app.use('/api/github', githubRouter);
 
 app.get('/health', (_req, res) => {
   const allOk = Object.values(serviceStatus).every(s => s === 'connected' || s === 'not_configured');
@@ -85,6 +92,11 @@ async function start() {
       await registerScheduler();
     } catch (err: any) {
       console.error('Failed to register sync scheduler:', err.message);
+    }
+    try {
+      await registerGithubDeepScanScheduler();
+    } catch (err: any) {
+      console.error('Failed to register GitHub deep-scan scheduler:', err.message);
     }
   }
 

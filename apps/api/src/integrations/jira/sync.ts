@@ -27,12 +27,17 @@ function isResolved(statusName: string): boolean {
   return ['done', 'resolved', 'closed', 'won\'t fix'].includes(statusName.toLowerCase());
 }
 
+export interface JiraSyncResult {
+  itemsSynced: number;
+  projects: number;
+}
+
 export async function syncJira(
   orgId: string,
   accessToken: string,
   cloudId: string,
   siteUrl: string
-): Promise<number> {
+): Promise<JiraSyncResult> {
   const base = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3`;
   const headers = { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' };
   let itemsSynced = 0;
@@ -124,5 +129,5 @@ export async function syncJira(
     }
   }
 
-  return itemsSynced;
+  return { itemsSynced, projects: projects.length };
 }

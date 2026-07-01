@@ -5,6 +5,9 @@ import { getSupabase } from '../config/postgres';
 import { getGitHubAuthUrl, exchangeGitHubCode } from '../integrations/github/auth';
 import { getJiraAuthUrl, exchangeJiraCode, getAccessibleSites } from '../integrations/jira/auth';
 import { validateDatadogKeys } from '../integrations/datadog/auth';
+import { getSlackAuthUrl, exchangeSlackCode } from '../integrations/slack/auth';
+import { validatePagerDutyKey } from '../integrations/pagerduty/auth';
+import { getLinearAuthUrl, exchangeLinearCode } from '../integrations/linear/auth';
 import { authMiddleware, AuthedRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 
@@ -181,7 +184,158 @@ router.post('/datadog/connect', authMiddleware as any, requireRole('owner', 'adm
   }
 });
 
+// ── Slack ─────────────────────────────────────────────────────────────────────
+
+router.get('/slack/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
+  try {
+    const orgId = req.user!.orgId;
+    const state = uuidv4();
+    const redis = getRedis();
+
+    await redis.set(`slack:oauth:state:${state}`, JSON.stringify({ orgId }), 'EX', STATE_TTL);
+
+    const url = getSlackAuthUrl(state);
+    res.json({ url });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/slack/callback', async (req: Request, res: Response) => {
+  const { code, state, error } = req.query as Record<string, string>;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  if (error) return res.redirect(`${frontendUrl}/integrations?error=${encodeURIComponent(error)}`);
+  if (!code || !state) return res.redirect(`${frontendUrl}/integrations?error=missing_params`);
+
+  try {
+    const redis = getRedis();
+    const raw = await redis.get(`slack:oauth:state:${state}`);
+    if (!raw) return res.redirect(`${frontendUrl}/integrations?error=invalid_state`);
+    await redis.del(`slack:oauth:state:${state}`);
+
+    const { orgId } = JSON.parse(raw) as { orgId: string };
+    const tokens = await exchangeSlackCode(code);
+    const supabase = getSupabase();
+
+    await supabase.from('integrations').upsert(
+      {
+        org_id: orgId,
+        provider: 'slack',
+        access_token: tokens.access_token,
+        extra_data: { teamId: tokens.team_id, teamName: tokens.team_name, botUserId: tokens.bot_user_id },
+        status: 'connected',
+      },
+      { onConflict: 'org_id,provider' }
+    );
+
+    return res.redirect(`${frontendUrl}/integrations?connected=slack`);
+  } catch (err: any) {
+    console.error('Slack callback error:', err.message);
+    return res.redirect(`${frontendUrl}/integrations?error=callback_failed`);
+  }
+});
+
+// ── PagerDuty ─────────────────────────────────────────────────────────────────
+
+router.post('/pagerduty/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
+  const { apiKey } = req.body as { apiKey: string };
+
+  if (!apiKey) {
+    res.status(400).json({ error: 'apiKey is required' });
+    return;
+  }
+
+  try {
+    const valid = await validatePagerDutyKey(apiKey);
+    if (!valid) {
+      res.status(400).json({ error: 'Invalid PagerDuty API key' });
+      return;
+    }
+
+    const orgId = req.user!.orgId;
+    const supabase = getSupabase();
+
+    await supabase.from('integrations').upsert(
+      { org_id: orgId, provider: 'pagerduty', extra_data: { apiKey }, status: 'connected' },
+      { onConflict: 'org_id,provider' }
+    );
+
+    res.json({ connected: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Linear ────────────────────────────────────────────────────────────────────
+
+router.get('/linear/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
+  try {
+    const orgId = req.user!.orgId;
+    const state = uuidv4();
+    const redis = getRedis();
+
+    await redis.set(`linear:oauth:state:${state}`, JSON.stringify({ orgId }), 'EX', STATE_TTL);
+
+    const url = getLinearAuthUrl(state);
+    res.json({ url });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/linear/callback', async (req: Request, res: Response) => {
+  const { code, state, error } = req.query as Record<string, string>;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  if (error) return res.redirect(`${frontendUrl}/integrations?error=${encodeURIComponent(error)}`);
+  if (!code || !state) return res.redirect(`${frontendUrl}/integrations?error=missing_params`);
+
+  try {
+    const redis = getRedis();
+    const raw = await redis.get(`linear:oauth:state:${state}`);
+    if (!raw) return res.redirect(`${frontendUrl}/integrations?error=invalid_state`);
+    await redis.del(`linear:oauth:state:${state}`);
+
+    const { orgId } = JSON.parse(raw) as { orgId: string };
+    const accessToken = await exchangeLinearCode(code);
+    const supabase = getSupabase();
+
+    await supabase.from('integrations').upsert(
+      { org_id: orgId, provider: 'linear', access_token: accessToken, status: 'connected' },
+      { onConflict: 'org_id,provider' }
+    );
+
+    return res.redirect(`${frontendUrl}/integrations?connected=linear`);
+  } catch (err: any) {
+    console.error('Linear callback error:', err.message);
+    return res.redirect(`${frontendUrl}/integrations?error=callback_failed`);
+  }
+});
+
+// ── Disconnect ────────────────────────────────────────────────────────────────
+
+router.post('/:provider/disconnect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
+  try {
+    const orgId = req.user!.orgId;
+    const { provider } = req.params;
+    const supabase = getSupabase();
+
+    await supabase
+      .from('integrations')
+      .update({ status: 'disconnected' })
+      .eq('org_id', orgId)
+      .eq('provider', provider);
+
+    res.json({ disconnected: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Status ────────────────────────────────────────────────────────────────────
+
+const ALL_PROVIDERS = ['github', 'jira', 'datadog', 'slack', 'pagerduty', 'linear'] as const;
 
 router.get('/status', authMiddleware as any, async (req: AuthedRequest, res: Response) => {
   try {
@@ -191,19 +345,26 @@ router.get('/status', authMiddleware as any, async (req: AuthedRequest, res: Res
 
     const { data } = await supabase
       .from('integrations')
-      .select('provider, status, last_synced_at')
+      .select('provider, status, last_synced_at, sync_counts')
       .eq('org_id', orgId);
 
-    const result: Record<string, { connected: boolean; lastSyncedAt: string | null }> = {
-      github: { connected: false, lastSyncedAt: null },
-      jira: { connected: false, lastSyncedAt: null },
-      datadog: { connected: false, lastSyncedAt: null },
-    };
+    const result: Record<string, {
+      status: 'not_connected' | 'connected' | 'error' | 'disconnected';
+      connected: boolean;
+      lastSyncedAt: string | null;
+      syncCounts: Record<string, number>;
+    }> = {} as any;
+
+    for (const provider of ALL_PROVIDERS) {
+      result[provider] = { status: 'not_connected', connected: false, lastSyncedAt: null, syncCounts: {} };
+    }
 
     for (const row of data ?? []) {
       result[row.provider] = {
+        status: row.status as any,
         connected: row.status === 'connected',
         lastSyncedAt: row.last_synced_at,
+        syncCounts: row.sync_counts ?? {},
       };
     }
 

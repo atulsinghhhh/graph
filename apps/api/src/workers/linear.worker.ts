@@ -1,20 +1,17 @@
 import Queue from 'bull';
 import { getSupabase } from '../config/postgres';
-import { syncDatadog } from '../integrations/datadog/sync';
+import { syncLinear } from '../integrations/linear/sync';
 import { runLinker } from './linker.worker';
 
-interface DatadogSyncJobData {
+interface LinearSyncJobData {
   orgId: string;
   integrationId: string;
   syncJobId: string;
 }
 
-export const datadogQueue = new Queue<DatadogSyncJobData>(
-  'datadog-sync',
-  process.env.REDIS_URL!
-);
+export const linearQueue = new Queue<LinearSyncJobData>('linear-sync', process.env.REDIS_URL!);
 
-datadogQueue.process(async (job) => {
+linearQueue.process(async (job) => {
   const { orgId, integrationId, syncJobId } = job.data;
   const supabase = getSupabase();
 
@@ -26,35 +23,28 @@ datadogQueue.process(async (job) => {
   try {
     const { data: integration, error } = await supabase
       .from('integrations')
-      .select('extra_data')
+      .select('access_token')
       .eq('id', integrationId)
       .single();
 
-    if (error || !integration) throw new Error('Datadog integration not found');
+    if (error || !integration?.access_token) {
+      throw new Error('Linear integration not found or missing access token');
+    }
 
-    const { apiKey, appKey, site } = integration.extra_data as {
-      apiKey: string;
-      appKey: string;
-      site: string;
-    };
-
-    const syncResult = await syncDatadog(orgId, apiKey, appKey, site);
+    const itemsSynced = await syncLinear(orgId, integration.access_token);
 
     await Promise.all([
       supabase
         .from('sync_jobs')
-        .update({ status: 'done', items_synced: syncResult.itemsSynced, finished_at: new Date().toISOString() })
+        .update({ status: 'done', items_synced: itemsSynced, finished_at: new Date().toISOString() })
         .eq('id', syncJobId),
       supabase
         .from('integrations')
-        .update({
-          last_synced_at: new Date().toISOString(),
-          sync_counts: { monitors: syncResult.monitors, alerts: syncResult.itemsSynced },
-        })
+        .update({ last_synced_at: new Date().toISOString(), sync_counts: { issues: itemsSynced } })
         .eq('id', integrationId),
     ]);
 
-    runLinker(orgId).catch(e => console.error('Linker error:', e));
+    runLinker(orgId).catch(e => console.error('Linker error (linear):', e));
   } catch (err: any) {
     await supabase
       .from('sync_jobs')
@@ -64,7 +54,7 @@ datadogQueue.process(async (job) => {
   }
 });
 
-export async function triggerDatadogSync(
+export async function triggerLinearSync(
   orgId: string,
   integrationId: string
 ): Promise<{ syncJobId: string; jobId: string | number }> {
@@ -72,12 +62,12 @@ export async function triggerDatadogSync(
 
   const { data: syncJob, error } = await supabase
     .from('sync_jobs')
-    .insert({ org_id: orgId, provider: 'datadog', status: 'pending' })
+    .insert({ org_id: orgId, provider: 'linear', status: 'pending' })
     .select('id')
     .single();
 
-  if (error || !syncJob) throw new Error('Failed to create Datadog sync job');
+  if (error || !syncJob) throw new Error('Failed to create Linear sync job');
 
-  const job = await datadogQueue.add({ orgId, integrationId, syncJobId: syncJob.id });
+  const job = await linearQueue.add({ orgId, integrationId, syncJobId: syncJob.id });
   return { syncJobId: syncJob.id, jobId: job.id };
 }

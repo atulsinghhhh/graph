@@ -3,6 +3,9 @@ import { getSupabase } from '../config/postgres';
 import { triggerGitHubSync } from './github.worker';
 import { triggerJiraSync } from './jira.worker';
 import { triggerDatadogSync } from './datadog.worker';
+import { triggerSlackSync } from './slack.worker';
+import { triggerPagerDutySync } from './pagerduty.worker';
+import { triggerLinearSync } from './linear.worker';
 
 const MIN_RESYNC_INTERVAL_MS = 10 * 60 * 1000;
 
@@ -27,6 +30,9 @@ schedulerQueue.process(async () => {
       if (integ.provider === 'github') await triggerGitHubSync(integ.org_id, integ.id);
       else if (integ.provider === 'jira') await triggerJiraSync(integ.org_id, integ.id);
       else if (integ.provider === 'datadog') await triggerDatadogSync(integ.org_id, integ.id);
+      else if (integ.provider === 'slack') await triggerSlackSync(integ.org_id, integ.id);
+      else if (integ.provider === 'pagerduty') await triggerPagerDutySync(integ.org_id, integ.id);
+      else if (integ.provider === 'linear') await triggerLinearSync(integ.org_id, integ.id);
     } catch (err: any) {
       console.error(`[Scheduler] ${integ.provider} sync failed for org ${integ.org_id}:`, err.message);
     }
