@@ -3,6 +3,8 @@ import { runQuery } from '../config/neo4j';
 const LABELS = [
   'Deployment', 'PullRequest', 'Engineer', 'Service', 'Incident', 'Bug', 'Alert', 'SecretAlert',
   'WorkflowRun', 'SecurityIncident', 'Message',
+  'Issue', 'SprintNode', 'IncidentChannel', 'Decision', 'AlertMessage', 'OnCallSchedule',
+  'Cycle', 'Project', 'SLO',
 ];
 
 const TIME_INDEXES: [string, string][] = [
@@ -12,6 +14,7 @@ const TIME_INDEXES: [string, string][] = [
   ['SecretAlert', 'createdAt'],
   ['WorkflowRun', 'failedAt'],
   ['SecurityIncident', 'detectedAt'],
+  ['Issue', 'detectedAt'],
 ];
 
 export async function applyNeo4jSchema(): Promise<void> {

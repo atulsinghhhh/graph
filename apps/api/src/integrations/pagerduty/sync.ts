@@ -3,7 +3,7 @@ import { upsertNode, runQuery } from '../../graph/queries';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-function pdClient(apiKey: string): AxiosInstance {
+export function pdClient(apiKey: string): AxiosInstance {
   return axios.create({
     baseURL: 'https://api.pagerduty.com',
     timeout: 15_000,

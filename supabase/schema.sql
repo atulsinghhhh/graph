@@ -167,3 +167,39 @@ ALTER TABLE public.github_hourly_reports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "github_hourly_reports_select" ON public.github_hourly_reports
   FOR SELECT USING (org_id = public.current_user_org_id());
+
+-- ============================================================
+-- Deep monitoring for Jira, Slack, PagerDuty, Linear, Datadog
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.tool_scan_reports (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id         uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  tool           text NOT NULL CHECK (tool IN ('jira', 'slack', 'pagerduty', 'linear', 'datadog')),
+  scanned_at     timestamptz NOT NULL DEFAULT now(),
+  items_scanned  int NOT NULL DEFAULT 0,
+  issues_found   jsonb NOT NULL DEFAULT '[]',
+  critical_count int NOT NULL DEFAULT 0,
+  high_count     int NOT NULL DEFAULT 0,
+  summary_text   text,
+  raw_stats      jsonb NOT NULL DEFAULT '{}'
+);
+
+ALTER TABLE public.tool_scan_reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "tool_scan_reports_select" ON public.tool_scan_reports
+  FOR SELECT USING (org_id = public.current_user_org_id());
+
+CREATE TABLE IF NOT EXISTS public.issue_acknowledgments (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+  issue_id        text NOT NULL,
+  acknowledged_by uuid REFERENCES auth.users(id),
+  acknowledged_at timestamptz NOT NULL DEFAULT now(),
+  note            text
+);
+
+ALTER TABLE public.issue_acknowledgments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "issue_acknowledgments_select" ON public.issue_acknowledgments
+  FOR SELECT USING (org_id = public.current_user_org_id());

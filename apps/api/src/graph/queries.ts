@@ -5,6 +5,8 @@ export { runQuery };
 const VALID_LABELS = new Set([
   'Deployment', 'PullRequest', 'Engineer', 'Service', 'Incident', 'Bug', 'Alert',
   'SecretAlert', 'WorkflowRun', 'SecurityIncident', 'Message',
+  'Issue', 'SprintNode', 'IncidentChannel', 'Decision', 'AlertMessage', 'OnCallSchedule',
+  'Cycle', 'Project', 'SLO',
 ]);
 
 const VALID_REL_TYPES = new Set([
@@ -14,6 +16,9 @@ const VALID_REL_TYPES = new Set([
   'HAS_SECRET_ALERT', 'INTRODUCED_SECRET', 'PUSHED_SECRET', 'POSSIBLY_TRIGGERED',
   'FAILED_ON', 'TRIGGERED_BY', 'CAUSED', 'FOUND_IN', 'CAUSED_BY', 'AFFECTS',
   'HAS_ISSUE', 'MENTIONS',
+  'IN_SPRINT', 'MANAGED_BY', 'REFERENCES', 'RESPONDED_BY', 'SLACK_ALERT_FOR', 'MADE_BY',
+  'ON_CALL_FOR', 'ESCALATED_TO', 'COVERS', 'IN_CYCLE', 'IN_PROJECT', 'BLOCKED_BY',
+  'OWNED_BY', 'MEASURES', 'TRIGGERED_BY_DEPLOY', 'WATCHES',
 ]);
 
 function assertLabel(label: string): void {
@@ -183,6 +188,16 @@ export async function findEngineerSecrets(
      ORDER BY s.createdAt DESC`,
     { engineerId, orgId }
   );
+}
+
+// Returns an existing node's cached fixSuggestion, if any — used so re-scans
+// never regenerate AI text for an issue that's still open from a prior scan.
+export async function getIssueFixSuggestion(id: string, orgId: string): Promise<string | null> {
+  const records = await runQuery<{ fixSuggestion: string | null }>(
+    `MATCH (n { id: $id, orgId: $orgId }) RETURN n.fixSuggestion AS fixSuggestion LIMIT 1`,
+    { id, orgId }
+  );
+  return records[0]?.fixSuggestion ?? null;
 }
 
 export async function countEngineers(orgId: string): Promise<number> {

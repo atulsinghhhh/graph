@@ -5,7 +5,7 @@ import { getSupabase } from '../../config/postgres';
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const WATCHED_CHANNEL_NAMES = ['incidents', 'alerts', 'engineering', 'security'];
 
-function slackClient(accessToken: string) {
+export function slackClient(accessToken: string) {
   return axios.create({
     baseURL: 'https://slack.com/api',
     timeout: 15_000,
@@ -45,7 +45,7 @@ export async function postSlackMessage(orgId: string, text: string): Promise<voi
 // Extracts graph node IDs mentioned in message text, e.g. "jira:INC-100" or "github:pr:421:org/repo".
 // jira: IDs are ambiguous between Bug and Incident (both use the same "jira:{key}" scheme) —
 // both labels are attempted; createRelationship's MATCH is a no-op (not an error) if the label is wrong.
-function extractMentionedIds(text: string): { label: string; id: string }[] {
+export function extractMentionedIds(text: string): { label: string; id: string }[] {
   const found: { label: string; id: string }[] = [];
   const idPattern = /\b(github:pr:\d+:[\w./-]+|jira:[A-Z]+-\d+|github:deploy:\d+)\b/g;
   let match: RegExpExecArray | null;
