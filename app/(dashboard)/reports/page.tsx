@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import PageHeader from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { timeAgo } from '@/components/reports/ToolReportPage';
 import BreakGraph, { type BreakGraphNode, type BreakGraphEdge, type GraphState } from '@/components/marketing/BreakGraph';
@@ -119,10 +120,7 @@ export default function ReportsOverviewPage() {
 
   return (
     <div className="p-8 max-w-4xl flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground mb-1">Reports</h1>
-        <p className="text-sm text-muted-foreground">A unified view of every connected tool's deep scans.</p>
-      </div>
+      <PageHeader title="Reports" description="A unified view of every connected tool's deep scans." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {Object.keys(TOOL_LINKS).map(tool => (

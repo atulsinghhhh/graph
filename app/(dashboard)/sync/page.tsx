@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { RefreshCw, ArrowRight } from 'lucide-react';
 import api from '@/lib/api';
+import PageHeader from '@/components/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface SyncJob {
   id: string;
@@ -15,11 +21,11 @@ interface SyncJob {
   created_at: string;
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  pending: 'bg-zinc-100 text-zinc-600',
-  running: 'bg-blue-50 text-blue-700',
-  done: 'bg-green-50 text-green-700',
-  error: 'bg-red-50 text-red-700',
+const STATUS_VARIANT: Record<string, 'secondary' | 'success' | 'destructive' | 'default'> = {
+  pending: 'secondary',
+  running: 'default',
+  done: 'success',
+  error: 'destructive',
 };
 
 export default function SyncPage() {
@@ -70,60 +76,64 @@ export default function SyncPage() {
   }, []);
 
   return (
-    <div className="p-8 max-w-2xl">
-      <h1 className="text-xl font-semibold text-zinc-900 mb-1">Data Sync</h1>
-      <p className="text-sm text-zinc-500 mb-6">Pull data from connected integrations into the graph.</p>
-
-      <button
-        onClick={startSync}
-        disabled={syncing}
-        className="mb-6 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-      >
-        {syncing ? 'Syncing…' : 'Start Sync'}
-      </button>
+    <div className="p-8 max-w-4xl flex flex-col gap-6">
+      <PageHeader
+        title="Data Sync"
+        description="Pull data from connected integrations into the graph."
+        actions={
+          <Button onClick={startSync} disabled={syncing}>
+            <RefreshCw className={cn('size-4', syncing && 'animate-spin')} />
+            {syncing ? 'Syncing…' : 'Start Sync'}
+          </Button>
+        }
+      />
 
       {syncError && (
-        <div className="mb-5 rounded-lg px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200">
+        <div className="rounded-lg px-4 py-3 text-sm bg-destructive/10 text-destructive border border-destructive/30">
           {syncError}
         </div>
       )}
 
-      {jobs.length > 0 && (
+      {jobs.length > 0 ? (
         <div className="flex flex-col gap-3">
           {jobs.map(job => (
-            <div key={job.id} className="bg-white border border-zinc-200 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm text-zinc-900 capitalize">{job.provider}</span>
-                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLOR[job.status]}`}>
-                  {job.status}
-                </span>
-              </div>
-
-              {job.status === 'running' && (
-                <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden mb-2">
-                  <div className="h-full bg-blue-500 rounded-full animate-pulse w-2/3" />
+            <Card key={job.id}>
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-sm text-foreground capitalize">{job.provider}</span>
+                  <Badge variant={STATUS_VARIANT[job.status] ?? 'secondary'} className="capitalize">
+                    {job.status}
+                  </Badge>
                 </div>
-              )}
 
-              {job.status === 'done' && (
-                <p className="text-xs text-zinc-500">{job.items_synced} items synced</p>
-              )}
+                {job.status === 'running' && (
+                  <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden mb-2">
+                    <div className="h-full bg-primary rounded-full animate-pulse w-2/3" />
+                  </div>
+                )}
 
-              {job.status === 'error' && (
-                <p className="text-xs text-red-600">{job.error_message}</p>
-              )}
-            </div>
+                {job.status === 'done' && (
+                  <p className="text-xs text-muted-foreground">{job.items_synced} items synced</p>
+                )}
+
+                {job.status === 'error' && (
+                  <p className="text-xs text-destructive">{job.error_message}</p>
+                )}
+              </CardContent>
+            </Card>
           ))}
+        </div>
+      ) : (
+        <div className="text-center py-16 border border-dashed border-border rounded-xl text-muted-foreground text-sm">
+          <p>No sync jobs yet. Hit “Start Sync” to pull data from your connected tools.</p>
         </div>
       )}
 
       {allDone && (
-        <button
-          onClick={() => router.push('/chat')}
-          className="mt-6 rounded-lg bg-green-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-600 transition-colors"
-        >
-          Graph ready — Ask your first question →
-        </button>
+        <Button onClick={() => router.push('/chat')} variant="default" className="self-start bg-success text-white hover:bg-success/90">
+          Graph ready — ask your first question
+          <ArrowRight className="size-4" />
+        </Button>
       )}
     </div>
   );

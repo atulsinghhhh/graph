@@ -1,7 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import api from '@/lib/api';
+import PageHeader from '@/components/PageHeader';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
 interface Member {
   id: string;
@@ -88,107 +96,119 @@ export default function TeamPage() {
     navigator.clipboard.writeText(inviteLink).then(() => setCopied(true));
   }
 
-  return (
-    <div className="max-w-3xl mx-auto p-8 flex flex-col gap-8">
-      <div>
-        <h1 className="text-xl font-bold text-zinc-900">Team</h1>
-        <p className="text-sm text-zinc-500 mt-1">Manage who has access to this workspace.</p>
-      </div>
+  function initialFor(m: Member) {
+    return (m.email ?? m.userId).charAt(0).toUpperCase();
+  }
 
-      <div className="bg-white border border-zinc-200 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-zinc-900 mb-3">Members</h2>
-        <div className="flex flex-col divide-y divide-zinc-100">
-          {members.map(m => (
-            <div key={m.id} className="flex items-center justify-between py-2.5">
-              <div>
-                <p className="text-sm text-zinc-900">{m.email ?? m.userId}</p>
-                <p className="text-xs text-zinc-400 capitalize">{m.role}</p>
+  return (
+    <div className="p-8 max-w-4xl flex flex-col gap-6">
+      <PageHeader title="Team" description="Manage who has access to this workspace." />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Members</CardTitle>
+        </CardHeader>
+        <CardContent className="pb-5">
+          <div className="flex flex-col divide-y divide-border">
+            {members.map(m => (
+              <div key={m.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar className="size-8">
+                    <AvatarFallback>{initialFor(m)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm text-foreground truncate">{m.email ?? m.userId}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{m.role}</p>
+                  </div>
+                </div>
+                {role === 'owner' && m.role !== 'owner' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeMember(m.id)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    Remove
+                  </Button>
+                )}
               </div>
-              {role === 'owner' && m.role !== 'owner' && (
-                <button
-                  onClick={() => removeMember(m.id)}
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  Remove
-                </button>
-              )}
-            </div>
-          ))}
-          {members.length === 0 && (
-            <p className="text-sm text-zinc-400 py-2">No members found.</p>
-          )}
-        </div>
-      </div>
+            ))}
+            {members.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2">No members found.</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {canManage && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-zinc-900 mb-3">Invite a teammate</h2>
-          <form onSubmit={sendInvite} className="flex flex-col sm:flex-row gap-2">
-            <input
-              type="email"
-              required
-              value={inviteEmail}
-              onChange={e => setInviteEmail(e.target.value)}
-              placeholder="teammate@company.com"
-              className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-zinc-900"
-            />
-            <select
-              value={inviteRole}
-              onChange={e => setInviteRole(e.target.value as 'admin' | 'member')}
-              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-900"
-            >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-            <button
-              type="submit"
-              disabled={inviting}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-            >
-              {inviting ? 'Sending…' : 'Send invite'}
-            </button>
-          </form>
-
-          {inviteError && <p className="text-xs text-red-600 mt-2">{inviteError}</p>}
-
-          {inviteLink && (
-            <div className="mt-3 flex items-center gap-2 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2">
-              <input
-                readOnly
-                value={inviteLink}
-                className="flex-1 bg-transparent text-xs text-zinc-600 outline-none"
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Invite a teammate</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-5">
+            <form onSubmit={sendInvite} className="flex flex-col sm:flex-row gap-2">
+              <Input
+                type="email"
+                required
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                placeholder="teammate@company.com"
+                className="flex-1"
               />
-              <button
-                onClick={copyLink}
-                className="text-xs font-medium text-zinc-900 hover:underline shrink-0"
+              <select
+                value={inviteRole}
+                onChange={e => setInviteRole(e.target.value as 'admin' | 'member')}
+                className="h-9 rounded-md border border-input bg-transparent px-3 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
               >
-                {copied ? 'Copied!' : 'Copy link'}
-              </button>
-            </div>
-          )}
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+              <Button type="submit" disabled={inviting}>
+                {inviting ? 'Sending…' : 'Send invite'}
+              </Button>
+            </form>
 
-          {invites.length > 0 && (
-            <div className="mt-5">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">Pending invites</h3>
-              <div className="flex flex-col divide-y divide-zinc-100">
-                {invites.map(i => (
-                  <div key={i.id} className="flex items-center justify-between py-2">
-                    <div>
-                      <p className="text-sm text-zinc-900">{i.email}</p>
-                      <p className="text-xs text-zinc-400 capitalize">{i.role}</p>
-                    </div>
-                    <button
-                      onClick={() => revokeInvite(i.id)}
-                      className="text-xs text-red-600 hover:underline"
-                    >
-                      Revoke
-                    </button>
-                  </div>
-                ))}
+            {inviteError && <p className="text-xs text-destructive mt-2">{inviteError}</p>}
+
+            {inviteLink && (
+              <div className="mt-3 flex items-center gap-2 bg-muted border border-border rounded-lg px-3 py-2">
+                <input
+                  readOnly
+                  value={inviteLink}
+                  className="flex-1 bg-transparent text-xs text-muted-foreground outline-none"
+                />
+                <Button variant="ghost" size="sm" onClick={copyLink} className="shrink-0 gap-1.5">
+                  {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  {copied ? 'Copied!' : 'Copy link'}
+                </Button>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+
+            {invites.length > 0 && (
+              <div className="mt-5">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Pending invites</h3>
+                <div className="flex flex-col divide-y divide-border">
+                  {invites.map(i => (
+                    <div key={i.id} className="flex items-center justify-between py-2.5">
+                      <div>
+                        <p className="text-sm text-foreground">{i.email}</p>
+                        <p className="text-xs text-muted-foreground capitalize">{i.role}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => revokeInvite(i.id)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

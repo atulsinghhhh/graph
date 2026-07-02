@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { ArrowRight } from 'lucide-react';
 import ConnectCard, { type Provider, type ConnectionStatus } from '@/components/integrations/ConnectCard';
 import api from '@/lib/api';
+import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
@@ -55,18 +56,16 @@ export default function IntegrationsPage() {
     : 0;
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground mb-1">Integrations</h1>
-          <p className="text-sm text-muted-foreground">
-            Connect your tools once. Your whole team shares the connection.
-          </p>
-        </div>
-        <Badge variant="outline" className="shrink-0 text-sm px-3 py-1">
-          Connected: {connectedCount}/6
-        </Badge>
-      </div>
+    <div className="p-8 max-w-4xl flex flex-col gap-6">
+      <PageHeader
+        title="Integrations"
+        description="Connect your tools once. Your whole team shares the connection."
+        actions={
+          <Badge variant="outline" className="text-sm px-3 py-1">
+            Connected: {connectedCount}/6
+          </Badge>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {PROVIDERS.map(p => (
@@ -82,7 +81,7 @@ export default function IntegrationsPage() {
       </div>
 
       {connectedCount >= 2 && (
-        <Button onClick={() => router.push('/sync')} className="mt-6">
+        <Button onClick={() => router.push('/sync')} className="self-start">
           Start sync
           <ArrowRight />
         </Button>
