@@ -13,6 +13,12 @@ import {
   Zap,
   ShieldAlert,
   GitBranch,
+  LayoutGrid,
+  Kanban,
+  MessageCircle,
+  BellRing,
+  CircleDot,
+  Activity,
   LogOut,
   type LucideIcon,
 } from 'lucide-react';
@@ -30,7 +36,13 @@ import { cn } from '@/lib/utils';
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/integrations', label: 'Integrations', icon: Plug },
+  { href: '/reports', label: 'Reports', icon: LayoutGrid },
   { href: '/github/report', label: 'GitHub Report', icon: GitBranch },
+  { href: '/jira/report', label: 'Jira Report', icon: Kanban },
+  { href: '/slack/report', label: 'Slack Report', icon: MessageCircle },
+  { href: '/pagerduty/report', label: 'PagerDuty Report', icon: BellRing },
+  { href: '/linear/report', label: 'Linear Report', icon: CircleDot },
+  { href: '/datadog/report', label: 'Datadog Report', icon: Activity },
   { href: '/integrations/team', label: 'Team', icon: Users },
   { href: '/sync', label: 'Sync', icon: RefreshCw },
   { href: '/graph', label: 'Graph', icon: Share2 },
@@ -40,11 +52,20 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/secrets', label: 'Secrets', icon: ShieldAlert },
 ];
 
+const REPORT_BADGE_CONFIG: Record<string, string[]> = {
+  '/github/report': ['secret'],
+  '/jira/report': ['sla_breach'],
+  '/slack/report': ['unresolved_incident_channel'],
+  '/pagerduty/report': ['unacknowledged_page'],
+  '/linear/report': ['cycle_at_risk'],
+  '/datadog/report': ['prolonged_alert', 'no_data'],
+};
+
 export default function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
   const router   = useRouter();
   const [openSecrets, setOpenSecrets] = useState(0);
-  const [openGithubSecrets, setOpenGithubSecrets] = useState(0);
+  const [reportBadgeCounts, setReportBadgeCounts] = useState<Record<string, number>>({});
   const [showTeamLink, setShowTeamLink] = useState(false);
 
   // Poll open secret alert count every 60s
@@ -62,15 +83,24 @@ export default function Sidebar({ email }: { email: string }) {
     return () => clearInterval(id);
   }, []);
 
-  // Poll open GitHub deep-scan security incidents every 60s
+  // One fetch powers every report nav item's badge count
   useEffect(() => {
-    function fetchCount() {
-      api.get('/api/github/secrets')
-        .then(r => setOpenGithubSecrets((r.data as any[]).length))
+    function fetchCounts() {
+      api.get('/api/reports/overview')
+        .then(r => {
+          const reports = r.data?.reports ?? {};
+          const counts: Record<string, number> = {};
+          for (const [href, types] of Object.entries(REPORT_BADGE_CONFIG)) {
+            const tool = href.split('/')[1];
+            const issues = reports[tool]?.issues_found ?? [];
+            counts[href] = issues.filter((i: any) => types.includes(i.type)).length;
+          }
+          setReportBadgeCounts(counts);
+        })
         .catch(() => {});
     }
-    fetchCount();
-    const id = setInterval(fetchCount, 60_000);
+    fetchCounts();
+    const id = setInterval(fetchCounts, 60_000);
     return () => clearInterval(id);
   }, []);
 
@@ -105,7 +135,7 @@ export default function Sidebar({ email }: { email: string }) {
         {nav.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           const isSecrets = href === '/secrets';
-          const isGithubReport = href === '/github/report';
+          const reportBadgeCount = reportBadgeCounts[href] ?? 0;
           return (
             <Link
               key={href}
@@ -127,9 +157,9 @@ export default function Sidebar({ email }: { email: string }) {
                   {openSecrets}
                 </Badge>
               )}
-              {isGithubReport && openGithubSecrets > 0 && (
+              {reportBadgeCount > 0 && (
                 <Badge variant="destructive" className="h-5 min-w-5 justify-center px-1 rounded-full">
-                  {openGithubSecrets}
+                  {reportBadgeCount}
                 </Badge>
               )}
             </Link>

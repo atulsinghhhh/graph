@@ -79,6 +79,44 @@ Express API is a real workspace package.
    This runs the Next.js frontend on `:3000` and the Express API on `:3001`
    concurrently.
 
+## Core features
+
+Three surfaces sit on top of the same Neo4j graph, each answering a different
+question:
+
+### Incidents — `/incidents` (reactive investigation)
+
+A master/detail browser over every `Incident` node synced from Jira, Datadog,
+or GitHub. The list shows severity, status, and source; selecting one calls
+`GET /api/incidents/:id` (`getIncidentContext` in
+`apps/api/src/graph/queries.ts`), which walks the graph outward from that
+incident and returns everything connected to it — deployments, pull requests,
+engineers, bugs, alerts, and services. This is the ground-truth timeline view:
+"what happened, and what's linked to it." `/chat` is the conversational layer
+built on the same data — Incidents is where you go to see the raw shape of it.
+
+### Dev Insights — `/insights` (proactive risk analysis)
+
+An AI-generated risk report over the 10 most recently merged pull requests
+(`apps/api/src/routes/insights.ts`). For each PR it walks the graph forward
+(PR → Deployment → Incident / Bug / SecretAlert) to see what actually happened
+after it shipped, then sends that outcome data to Groq to score a risk level
+(`low` / `medium` / `high` / `critical`) and write specific potential issues
+and fix suggestions. Where Incidents tells you what already broke, Insights
+flags which recent code is likely to break next — before it becomes an
+incident.
+
+### Secrets — `/secrets` (org-wide security visibility)
+
+A read-only feed of `SecretAlert` nodes synced from GitHub Advanced Security
+secret scanning (`apps/api/src/routes/secrets.ts`). Every alert is enriched
+with who pushed it, which service and pull request it came from, and whether
+it's linked to a downstream incident via a `POSSIBLY_TRIGGERED` edge (with a
+confidence score). Visibility is org-wide by design, not limited to the
+engineer who pushed the secret — a leaked credential is a team-level risk —
+and the same data powers `/chat` answers like *"did anyone push a secret this
+week?"*.
+
 ## Health check
 
 ```
@@ -96,30 +134,67 @@ Returns connection status for Neo4j, Postgres, and Redis.
 | `npm run build` | Build all workspaces via Turbo |
 | `npm run lint` | Lint all workspaces via Turbo |
 
+## Solo developer workflow
 
+1. **Sign up** — user goes to `/login`, signs up with email/password, verifies
+   via the confirmation email.
+2. **Silent org creation** — the moment their first authenticated API call
+   hits `apps/api/src/middleware/auth.ts`, it finds no `org_members` row and
+   silently creates one `organizations` row + one `org_members` row with
+   `role: 'owner'`. No form, no prompt — the user never sees this happen.
+3. **Connect tools** — lands on `/integrations`, connects their own personal
+   GitHub, Jira, Datadog. Since they're the sole owner, `requireRole('owner',
+   'admin')` passes on all connect actions.
+4. **Sync** — `/sync` triggers `POST /api/sync/start`, pulling their
+   repos/PRs/deployments/bugs/alerts into the graph, then `linker.worker.ts`
+   builds `TRIGGERED`/`OWNS`/`LINKED_TO` edges. After that, a 15-minute Bull
+   job keeps it fresh automatically.
+5. **Ask questions** — in `/chat`, they see solo-flavored suggestions ("Why
+   did my last deployment fail?"). Because `countEngineers()` finds exactly 1
+   `Engineer` node in their graph, the AI prompt switches to "you" phrasing —
+   "You changed the rate limiter logic" instead of naming them.
+6. **Nav stays minimal** — `Sidebar.tsx` checks `GET /api/organizations/me`;
+   with `memberCount === 1` and no admin-worthy reason to show it, the "Team"
+   link stays hidden.
 
-Solo Developer Workflow
+## Organisation workflow
 
-1. Sign up — user goes to /login, signs up with email/password, verifies via the magic-link email.
-2. Silent org creation — the moment their first authenticated API call hits apps/api/src/middleware/auth.ts, it finds no org_members row and silently creates one organizations row + one org_members row with role: 'owner'. No form, no prompt — the user never sees this happen.
-3. Connect tools — lands on /integrations, connects their own personal GitHub, Jira, Datadog. Since they're the sole owner, requireRole('owner','admin') passes on all connect actions.
-4. Sync — /sync triggers POST /api/sync/start, pulling their repos/PRs/deployments/bugs/alerts into the graph, then linker.worker.ts builds TRIGGERED/OWNS/LINKED_TO edges. After that, a 15-minute Bull job keeps it fresh automatically.
-5. Ask questions — in /chat, they see solo-flavored suggestions ("Why did my last deployment fail?"). Because countEngineers() finds exactly 1 Engineer node in their graph, the AI prompt switches to "you" phrasing — "You changed the rate limiter logic" instead of naming them.
-6. Nav stays minimal — Sidebar.tsx checks GET /api/organizations/me; with memberCount === 1 and no admin-worthy reason to show it, the "Team" link stays hidden.
+1. **Owner creates a workspace explicitly** — instead of falling into the
+   silent solo path, the owner picks "My team" at signup (or visits
+   `/onboarding/create-org` directly) and names the company workspace on
+   purpose, via `POST /api/organizations`.
+2. **Connect company-wide tools** — the owner connects shared GitHub, Jira,
+   and Datadog org keys on `/integrations`. These live on the `integrations`
+   table with no `user_id` — one shared token for the whole org.
+3. **Invite teammates** — owner/admin opens `/integrations/team`, enters an
+   email + role, hits `POST /api/organizations/invite`. This writes a random
+   token and returns a `/join?token=...` link (copy-link only right now — no
+   email provider wired up), shown with a "Copy link" button.
+4. **Invitee joins**:
+   - Not signed in → `/join` shows "Sign in" → `/login?next=/join?token=...`
+     → signup/verify → `/auth/callback` → back to `/join`.
+   - Signed in → `POST /api/organizations/invite/accept` fires automatically,
+     adds them to `org_members` with the invited role, marks the invite
+     `accepted`.
+   - Race condition guard: if they hit any other authenticated API call
+     before clicking the invite, `authMiddleware` checks `org_invites` for a
+     pending match on their email first and returns `403 pending_invite`
+     instead of silently creating a solo org for them.
+5. **Immediate access** — new member lands on `/integrations` with everything
+   already connected (shared org tokens), and can use `/chat` and
+   `/incidents` right away.
+6. **Roles enforce what they can do** — per `requireRole()` in
+   `apps/api/src/middleware/roles.ts`: owner/admin can connect tools, trigger
+   sync, and invite/remove members; a plain member can only view `/chat`,
+   `/incidents`, and the team list (read-only, no invite/remove buttons
+   rendered).
+7. **Richer AI answers** — with 2+ `Engineer` nodes, the AI prompt switches to
+   real-name attribution: "PR #421 was authored by Alice Chen... Rollback PR
+   #430 by Bob Kim resolved it."
+8. **Nav shows "Team"** — once `memberCount >= 2` (or the viewer is
+   owner/admin), `Sidebar` surfaces the `/integrations/team` link for
+   managing members and invites.
 
-Organisation Workflow                                                                                
-1. Owner creates a workspace explicitly — instead of falling into the silent solo path, the owner    visits /onboarding/create-org and canaming the company workspace onpurpose.                                                                                             2. Connect company-wide tools — ownera workspace, Datadog org keys on/integrations. These live on the integrations table with no user_id — one shared token for the whole org.
-3. Invite teammates — owner/admin opens /integrations/team, enters an email + role, hits POST          /api/organizations/invite. This writa random token and returns a/join?token=... link (copy-link only right now — no email provider wired up), shown with a "Copy link" button.
-4. Invitee joins:
-  - Not signed in → /join shows "Siggh /login?next=/join?token=... →signup/magic-link → /auth/callback → back to /join.
-  - Signed in → POST /api/organizatiatically, adds them to org_memberswith the invited role, marks the invite accepted.
-  - Race condition guard: if this saes any other authenticated API callbefore clicking the invite, authMiddleware checks org_invites for a pending match on their email first
-and returns 403 pending_invite insteolo org for them.
-5. Immediate access — new member lands on /integrations with everything already connected (shared org
-tokens), can use /chat and /incident
-6. Roles enforce what they can do — per requireRole() in apps/api/src/middleware/roles.ts: owner/admin
-can connect tools, trigger sync, inve members; plain member can only view/chat, /incidents, and the team list (read-only, no invite/remove buttons rendered).
-7. Richer AI answers — with 2+ EnginI prompt switches to real-nameattribution: "PR #421 was authored by Alice Chen... Rollback PR #430 by Bob Kim resolved it."
-8. Nav shows "Team" — once memberCouer/admin), Sidebar surfaces the/integrations/team link for managing members and invites.
-
-The only thing distinguishing the two paths at runtime is the row count in org_members — everything else (/chat, /incidents, /sync, /intcode and pages for both.
+The only thing distinguishing the two paths at runtime is the row count in
+`org_members` — everything else (`/chat`, `/incidents`, `/insights`,
+`/secrets`, `/sync`, `/integrations`) is the same code and pages for both.

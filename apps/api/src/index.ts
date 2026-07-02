@@ -14,6 +14,7 @@ import secretsRouter from './routes/secrets';
 import insightsRouter from './routes/insights';
 import organizationsRouter from './routes/organizations';
 import githubRouter from './routes/github';
+import reportsRouter from './routes/reports';
 import './workers/github.worker';
 import './workers/jira.worker';
 import './workers/datadog.worker';
@@ -21,9 +22,19 @@ import './workers/slack.worker';
 import './workers/pagerduty.worker';
 import './workers/linear.worker';
 import './workers/github-deep-scan.worker';
+import './workers/jira-deep-scan.worker';
+import './workers/slack-deep-scan.worker';
+import './workers/pagerduty-deep-scan.worker';
+import './workers/linear-deep-scan.worker';
+import './workers/datadog-deep-scan.worker';
 import './workers/scheduler';
 import { registerScheduler } from './workers/scheduler';
 import { registerGithubDeepScanScheduler } from './workers/github-deep-scan.worker';
+import { registerJiraDeepScanScheduler } from './workers/jira-deep-scan.worker';
+import { registerSlackDeepScanScheduler } from './workers/slack-deep-scan.worker';
+import { registerPagerDutyDeepScanScheduler } from './workers/pagerduty-deep-scan.worker';
+import { registerLinearDeepScanScheduler } from './workers/linear-deep-scan.worker';
+import { registerDatadogDeepScanScheduler } from './workers/datadog-deep-scan.worker';
 
 const app = express();
 
@@ -46,6 +57,7 @@ app.use('/api/secrets', secretsRouter);
 app.use('/api/insights', insightsRouter);
 app.use('/api/organizations', organizationsRouter);
 app.use('/api/github', githubRouter);
+app.use('/api/reports', reportsRouter);
 
 app.get('/health', (_req, res) => {
   const allOk = Object.values(serviceStatus).every(s => s === 'connected' || s === 'not_configured');
@@ -93,10 +105,19 @@ async function start() {
     } catch (err: any) {
       console.error('Failed to register sync scheduler:', err.message);
     }
-    try {
-      await registerGithubDeepScanScheduler();
-    } catch (err: any) {
-      console.error('Failed to register GitHub deep-scan scheduler:', err.message);
+    for (const [name, register] of [
+      ['GitHub', registerGithubDeepScanScheduler],
+      ['Jira', registerJiraDeepScanScheduler],
+      ['Slack', registerSlackDeepScanScheduler],
+      ['PagerDuty', registerPagerDutyDeepScanScheduler],
+      ['Linear', registerLinearDeepScanScheduler],
+      ['Datadog', registerDatadogDeepScanScheduler],
+    ] as const) {
+      try {
+        await register();
+      } catch (err: any) {
+        console.error(`Failed to register ${name} deep-scan scheduler:`, err.message);
+      }
     }
   }
 
