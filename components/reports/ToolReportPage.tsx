@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronUp, AlertTriangle, FileText } from 'lucide-react';
 import api from '@/lib/api';
+import PageHeader from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -129,18 +130,16 @@ export default function ToolReportPage({ tool, title, scheduleMinutes, renderSec
 
   return (
     <div className="p-8 max-w-4xl flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground mb-1">{title}</h1>
-        {report ? (
-          <p className="text-sm text-muted-foreground">
-            Last scanned: {timeAgo(report.scanned_at)} · Next scan: in {minutesUntilNextScan(report.scanned_at, scheduleMinutes)} minutes · {report.items_scanned} items scanned
-          </p>
-        ) : loaded ? (
-          <p className="text-sm text-muted-foreground">No scan has run yet — the first scan will run automatically.</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        )}
-      </div>
+      <PageHeader
+        title={title}
+        description={
+          report
+            ? `Last scanned ${timeAgo(report.scanned_at)} · next scan in ${minutesUntilNextScan(report.scanned_at, scheduleMinutes)} min · ${report.items_scanned} items scanned`
+            : loaded
+              ? 'No scan has run yet — the first scan will run automatically.'
+              : 'Loading…'
+        }
+      />
 
       {criticalIssues.length > 0 && (
         <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-5">
