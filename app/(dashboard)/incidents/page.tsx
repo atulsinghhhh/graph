@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { X } from 'lucide-react';
 import api from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -37,16 +40,16 @@ function timeAgo(iso: string): string {
 }
 
 const SEVERITY_COLOR: Record<string, string> = {
-  critical: 'bg-red-50 text-red-700 border-red-200',
-  high:     'bg-orange-50 text-orange-700 border-orange-200',
-  medium:   'bg-amber-50 text-amber-700 border-amber-200',
-  low:      'bg-zinc-50 text-zinc-600 border-zinc-200',
+  critical: 'bg-destructive/10 text-destructive border-destructive/30',
+  high: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+  medium: 'bg-warning/10 text-warning border-warning/30',
+  low: 'bg-muted text-muted-foreground border-border',
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  open:          'bg-red-50 text-red-700',
-  investigating: 'bg-blue-50 text-blue-700',
-  resolved:      'bg-green-50 text-green-700',
+  open: 'bg-destructive/10 text-destructive',
+  investigating: 'bg-blue-500/10 text-blue-400',
+  resolved: 'bg-success/10 text-success',
 };
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
@@ -67,28 +70,30 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
   }, [incidentId]);
 
   return (
-    <div className="flex flex-col h-full border-l border-zinc-200 bg-white overflow-y-auto">
+    <div className="flex flex-col h-full border-l border-border bg-card overflow-y-auto">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 shrink-0">
-        <span className="text-sm font-semibold text-zinc-700">Incident detail</span>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+        <span className="text-sm font-semibold text-foreground">Incident detail</span>
         <button
           onClick={onClose}
-          className="text-zinc-400 hover:text-zinc-700 text-lg leading-none"
+          className="text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Close"
-        >×</button>
+        >
+          <X className="size-4" />
+        </button>
       </div>
 
       <div className="px-5 py-5 flex flex-col gap-5 flex-1">
         {loading && (
           <div className="animate-pulse flex flex-col gap-3">
-            <div className="h-5 bg-zinc-100 rounded w-3/4" />
-            <div className="h-3 bg-zinc-100 rounded w-1/3" />
-            <div className="h-24 bg-zinc-100 rounded-xl mt-2" />
+            <div className="h-5 bg-muted rounded w-3/4" />
+            <div className="h-3 bg-muted rounded w-1/3" />
+            <div className="h-24 bg-muted rounded-xl mt-2" />
           </div>
         )}
 
         {error && !loading && (
-          <div className="rounded-lg px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200">
+          <div className="rounded-lg px-4 py-3 text-sm bg-destructive/10 text-destructive border border-destructive/30">
             {error}
           </div>
         )}
@@ -99,23 +104,23 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
             <>
               {/* Title + badges */}
               <div>
-                <h2 className="text-base font-semibold text-zinc-900 mb-2">{inc.title}</h2>
+                <h2 className="text-base font-semibold text-foreground mb-2">{inc.title}</h2>
                 <div className="flex flex-wrap gap-2">
                   {inc.severity && (
-                    <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border capitalize ${SEVERITY_COLOR[inc.severity] ?? SEVERITY_COLOR.low}`}>
+                    <Badge variant="outline" className={cn('capitalize', SEVERITY_COLOR[inc.severity] ?? SEVERITY_COLOR.low)}>
                       {inc.severity}
-                    </span>
+                    </Badge>
                   )}
                   {inc.status && (
-                    <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full capitalize ${STATUS_COLOR[inc.status] ?? STATUS_COLOR.open}`}>
+                    <Badge variant="outline" className={cn('capitalize border-transparent', STATUS_COLOR[inc.status] ?? STATUS_COLOR.open)}>
                       {inc.status}
-                    </span>
+                    </Badge>
                   )}
                   {inc.source && (
-                    <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded">{inc.source}</span>
+                    <Badge variant="secondary" className="text-muted-foreground">{inc.source}</Badge>
                   )}
                 </div>
-                <p className="text-xs text-zinc-400 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   Started {new Date(inc.startedAt).toLocaleString()}
                   {inc.resolvedAt && ` · resolved ${new Date(inc.resolvedAt).toLocaleString()}`}
                 </p>
@@ -126,9 +131,9 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
                 <Section title="Engineers involved">
                   <div className="flex flex-wrap gap-1.5">
                     {ctx.engineers.map(e => (
-                      <span key={e.id} className="inline-flex items-center text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-3 py-1">
+                      <Badge key={e.id} variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 rounded-full px-3 py-1">
                         {e.name ?? e.githubLogin ?? e.id}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </Section>
@@ -140,7 +145,7 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
                   {ctx.deployments.map(d => (
                     <Row key={d.id} main={d.version ?? d.id} sub={d.environment ?? ''}>
                       {d.confidence != null && (
-                        <span className="text-xs text-blue-600">{Math.round(d.confidence * 100)}% confidence</span>
+                        <span className="text-xs text-blue-400">{Math.round(d.confidence * 100)}% confidence</span>
                       )}
                     </Row>
                   ))}
@@ -155,12 +160,12 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
                       main={b.title ?? b.jiraId ?? b.id}
                       sub={b.priority ? `Priority: ${b.priority}` : ''}>
                       {b.url && (
-                        <a href={b.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+                        <a href={b.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
                           {b.jiraId}
                         </a>
                       )}
                       {!b.url && b.jiraId && (
-                        <span className="text-xs text-zinc-400">{b.jiraId}</span>
+                        <span className="text-xs text-muted-foreground">{b.jiraId}</span>
                       )}
                     </Row>
                   ))}
@@ -174,7 +179,7 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
                     <Row key={a.id}
                       main={a.metric ?? a.id}
                       sub={a.firedAt ? `Fired ${timeAgo(a.firedAt)}` : ''}>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${a.status === 'Alert' ? 'bg-pink-50 text-pink-700' : 'bg-zinc-100 text-zinc-600'}`}>
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full', a.status === 'Alert' ? 'bg-pink-500/10 text-pink-400' : 'bg-muted text-muted-foreground')}>
                         {a.status}
                       </span>
                     </Row>
@@ -187,9 +192,9 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
                 <Section title="Affected services">
                   <div className="flex flex-wrap gap-1.5">
                     {ctx.services.map(s => (
-                      <span key={s.id} className="text-xs bg-teal-50 text-teal-700 border border-teal-200 px-3 py-1 rounded-full">
+                      <Badge key={s.id} variant="outline" className="bg-teal-500/10 text-teal-400 border-teal-500/30 rounded-full px-3 py-1">
                         {s.name ?? s.id}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </Section>
@@ -203,7 +208,7 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
                       main={pr.title ?? `PR #${pr.githubId}`}
                       sub={pr.mergedAt ? `Merged ${timeAgo(pr.mergedAt)}` : ''}>
                       {pr.url && (
-                        <a href={pr.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                        <a href={pr.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">View</a>
                       )}
                     </Row>
                   ))}
@@ -212,7 +217,7 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
 
               {/* Empty state */}
               {ctx.engineers.length === 0 && ctx.deployments.length === 0 && ctx.bugs.length === 0 && (
-                <p className="text-sm text-zinc-400">No related data linked yet. Run a sync to enrich this incident.</p>
+                <p className="text-sm text-muted-foreground">No related data linked yet. Run a sync to enrich this incident.</p>
               )}
             </>
           );
@@ -227,7 +232,7 @@ function DetailPanel({ incidentId, onClose }: { incidentId: string; onClose: () 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">{title}</h3>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{title}</h3>
       <div className="flex flex-col gap-2">{children}</div>
     </div>
   );
@@ -235,10 +240,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Row({ main, sub, children }: { main: string; sub: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between text-sm bg-zinc-50 rounded-lg px-3 py-2">
+    <div className="flex items-center justify-between text-sm bg-muted rounded-lg px-3 py-2">
       <div className="flex flex-col gap-0.5 min-w-0 mr-3">
-        <span className="text-zinc-800 font-medium truncate">{main}</span>
-        {sub && <span className="text-xs text-zinc-400">{sub}</span>}
+        <span className="text-foreground font-medium truncate">{main}</span>
+        {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
       </div>
       {children && <div className="shrink-0">{children}</div>}
     </div>
@@ -263,25 +268,25 @@ export default function IncidentsPage() {
   return (
     <div className="flex h-full">
       {/* ── Left: incident list ── */}
-      <div className={`flex flex-col ${selectedId ? 'w-80 shrink-0' : 'flex-1'} overflow-y-auto p-6 transition-all`}>
-        <h1 className="text-xl font-semibold text-zinc-900 mb-1">Incidents</h1>
-        <p className="text-sm text-zinc-500 mb-5">All incidents synced from your connected tools.</p>
+      <div className={cn('flex flex-col overflow-y-auto p-6 transition-all', selectedId ? 'w-80 shrink-0' : 'flex-1')}>
+        <h1 className="text-xl font-semibold text-foreground mb-1">Incidents</h1>
+        <p className="text-sm text-muted-foreground mb-5">All incidents synced from your connected tools.</p>
 
         {error && (
-          <div className="mb-4 rounded-lg px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200">{error}</div>
+          <div className="mb-4 rounded-lg px-4 py-3 text-sm bg-destructive/10 text-destructive border border-destructive/30">{error}</div>
         )}
 
         {loading ? (
           <div className="flex flex-col gap-2">
             {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white border border-zinc-200 rounded-xl px-5 py-4 animate-pulse">
-                <div className="h-4 bg-zinc-100 rounded w-2/3 mb-2" />
-                <div className="h-3 bg-zinc-100 rounded w-1/3" />
+              <div key={i} className="bg-card border border-border rounded-xl px-5 py-4 animate-pulse">
+                <div className="h-4 bg-muted rounded w-2/3 mb-2" />
+                <div className="h-3 bg-muted rounded w-1/3" />
               </div>
             ))}
           </div>
         ) : incidents.length === 0 && !error ? (
-          <div className="text-center py-16 border border-dashed border-zinc-200 rounded-xl text-zinc-400 text-sm">
+          <div className="text-center py-16 border border-dashed border-border rounded-xl text-muted-foreground text-sm">
             <p className="mb-1">No incidents found.</p>
             <p>Run a sync to pull incident data.</p>
           </div>
@@ -291,27 +296,28 @@ export default function IncidentsPage() {
               <button
                 key={inc.id}
                 onClick={() => setSelectedId(inc.id === selectedId ? null : inc.id)}
-                className={`text-left w-full bg-white border rounded-xl px-5 py-4 transition-colors ${
+                className={cn(
+                  'text-left w-full bg-card border rounded-xl px-5 py-4 transition-colors',
                   selectedId === inc.id
-                    ? 'border-zinc-900 ring-1 ring-zinc-900'
-                    : 'border-zinc-200 hover:border-zinc-400'
-                }`}
+                    ? 'border-primary ring-1 ring-primary'
+                    : 'border-border hover:border-muted-foreground/50'
+                )}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-sm font-medium text-zinc-900 truncate">{inc.title}</span>
-                    <span className="text-xs text-zinc-400">
+                    <span className="text-sm font-medium text-foreground truncate">{inc.title}</span>
+                    <span className="text-xs text-muted-foreground">
                       {timeAgo(inc.startedAt)}
                       {inc.source && ` · ${inc.source}`}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${SEVERITY_COLOR[inc.severity] ?? SEVERITY_COLOR.low}`}>
+                    <Badge variant="outline" className={cn('capitalize', SEVERITY_COLOR[inc.severity] ?? SEVERITY_COLOR.low)}>
                       {inc.severity}
-                    </span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLOR[inc.status] ?? STATUS_COLOR.open}`}>
+                    </Badge>
+                    <Badge variant="outline" className={cn('capitalize border-transparent', STATUS_COLOR[inc.status] ?? STATUS_COLOR.open)}>
                       {inc.status}
-                    </span>
+                    </Badge>
                   </div>
                 </div>
               </button>

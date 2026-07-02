@@ -470,7 +470,7 @@ async function scanRepoHealth(
       severity: 'high',
       title: `No branch protection on ${defaultBranch} (${repoName})`,
       fixSuggestion: `Enable branch protection at github.com/${repoName}/settings/branches. Require: PR reviews before merging, status checks to pass, no force pushes.`,
-      nodeId: serviceId,
+      nodeId: `${serviceId}:no_branch_protection`,
       url: `https://github.com/${repoName}/settings/branches`,
     });
   }
@@ -491,7 +491,7 @@ async function scanRepoHealth(
       severity: (alert.security_advisory?.severity ?? 'medium') as DeepScanIssue['severity'],
       title: `Vulnerable dependency ${pkg} in ${repoName}`,
       fixSuggestion: `Update ${pkg} to ${fixedIn} or later. Run: npm update ${pkg} or pip install --upgrade ${pkg}`,
-      nodeId: serviceId,
+      nodeId: `${serviceId}:vulnerability:${alert.number ?? pkg}`,
       url: `https://github.com/${repoName}/security/dependabot`,
     });
   }
@@ -510,7 +510,7 @@ async function scanRepoHealth(
       severity: 'medium',
       title: `No .gitignore in ${repoName}`,
       fixSuggestion: 'Add sensitive file patterns to .gitignore immediately.',
-      nodeId: serviceId,
+      nodeId: `${serviceId}:missing_gitignore`,
       url: `https://github.com/${repoName}`,
     });
   }

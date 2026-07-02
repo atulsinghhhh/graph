@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertTriangle, FileText } from 'lucide-react';
 import api from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -168,11 +168,14 @@ export default function ToolReportPage({ tool, title, scheduleMinutes, renderSec
       {renderSections(report, issues, load)}
 
       {report?.summary_text && (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">AI Summary</p>
-          <div className="rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-card border border-border text-foreground rounded-bl-sm max-w-2xl">
+        <div className="rounded-xl border border-border bg-card p-5 max-w-2xl">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            <FileText className="size-3.5" />
+            AI Summary
+          </p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
             {report.summary_text}
-          </div>
+          </p>
         </div>
       )}
     </div>

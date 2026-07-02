@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react';
+import { ChevronDown, ChevronUp, ShieldAlert, FileText } from 'lucide-react';
 import api from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -330,7 +330,7 @@ export default function GithubReportPage() {
         <div className="p-5">
           {tab === 'ci' && (
             ciIssues.length > 0
-              ? ciIssues.map(i => <IssueRow key={i.nodeId} issue={i} />)
+              ? ciIssues.map(i => <IssueRow key={`${i.nodeId}-${i.type}`} issue={i} />)
               : <p className="text-sm text-muted-foreground">No CI/CD failures in the last scan.</p>
           )}
 
@@ -354,7 +354,7 @@ export default function GithubReportPage() {
 
           {tab === 'security' && (
             securityIssues.length > 0
-              ? securityIssues.map(i => <IssueRow key={i.nodeId} issue={i} />)
+              ? securityIssues.map(i => <IssueRow key={`${i.nodeId}-${i.type}`} issue={i} />)
               : <p className="text-sm text-muted-foreground">No repo security issues detected.</p>
           )}
 
@@ -401,11 +401,14 @@ export default function GithubReportPage() {
       </div>
 
       {report?.summary_text && (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">AI Summary</p>
-          <div className="rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap bg-card border border-border text-foreground rounded-bl-sm max-w-2xl">
+        <div className="rounded-xl border border-border bg-card p-5 max-w-2xl">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+            <FileText className="size-3.5" />
+            AI Summary
+          </p>
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground">
             {report.summary_text}
-          </div>
+          </p>
         </div>
       )}
     </div>

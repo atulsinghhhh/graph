@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import Timeline from '@/components/incidents/Timeline';
 import IncidentGraph, { BreakPoint } from '@/components/incidents/IncidentGraph';
 import api from '@/lib/api';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 interface IncidentCtx {
   incident: {
@@ -84,16 +87,16 @@ function buildTimeline(ctx: IncidentCtx): TimelineEvent[] {
 }
 
 const SEVERITY_COLOR: Record<string, string> = {
-  critical: 'bg-red-50 text-red-700 border-red-200',
-  high: 'bg-orange-50 text-orange-700 border-orange-200',
-  medium: 'bg-amber-50 text-amber-700 border-amber-200',
-  low: 'bg-zinc-50 text-zinc-600 border-zinc-200',
+  critical: 'bg-destructive/10 text-destructive border-destructive/30',
+  high: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+  medium: 'bg-warning/10 text-warning border-warning/30',
+  low: 'bg-muted text-muted-foreground border-border',
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  open: 'bg-red-50 text-red-700',
-  investigating: 'bg-blue-50 text-blue-700',
-  resolved: 'bg-green-50 text-green-700',
+  open: 'bg-destructive/10 text-destructive',
+  investigating: 'bg-blue-500/10 text-blue-400',
+  resolved: 'bg-success/10 text-success',
 };
 
 export default function IncidentDetailPage() {
@@ -117,16 +120,18 @@ export default function IncidentDetailPage() {
 
   if (loading) return (
     <div className="p-8 max-w-2xl animate-pulse">
-      <div className="h-6 bg-zinc-100 rounded w-2/3 mb-4" />
-      <div className="h-4 bg-zinc-100 rounded w-1/4 mb-8" />
-      <div className="h-48 bg-zinc-100 rounded-xl" />
+      <div className="h-6 bg-muted rounded w-2/3 mb-4" />
+      <div className="h-4 bg-muted rounded w-1/4 mb-8" />
+      <div className="h-48 bg-muted rounded-xl" />
     </div>
   );
 
   if (error) return (
     <div className="p-8 max-w-2xl">
-      <Link href="/incidents" className="text-sm text-zinc-400 hover:text-zinc-600 mb-4 inline-block">← Incidents</Link>
-      <div className="rounded-lg px-4 py-3 text-sm bg-red-50 text-red-700 border border-red-200">{error}</div>
+      <Link href="/incidents" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-flex items-center gap-1.5">
+        <ArrowLeft className="size-3.5" /> Incidents
+      </Link>
+      <div className="rounded-lg px-4 py-3 text-sm bg-destructive/10 text-destructive border border-destructive/30">{error}</div>
     </div>
   );
 
@@ -137,26 +142,28 @@ export default function IncidentDetailPage() {
 
   return (
     <div className="p-8 max-w-2xl">
-      <Link href="/incidents" className="text-sm text-zinc-400 hover:text-zinc-600 mb-4 inline-block">← Incidents</Link>
+      <Link href="/incidents" className="text-sm text-muted-foreground hover:text-foreground mb-4 inline-flex items-center gap-1.5">
+        <ArrowLeft className="size-3.5" /> Incidents
+      </Link>
 
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900">{inc.title}</h1>
+        <h1 className="text-xl font-semibold text-foreground">{inc.title}</h1>
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           {inc.severity && (
-            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border capitalize ${SEVERITY_COLOR[inc.severity] ?? SEVERITY_COLOR.low}`}>
+            <Badge variant="outline" className={cn('capitalize', SEVERITY_COLOR[inc.severity] ?? SEVERITY_COLOR.low)}>
               {inc.severity}
-            </span>
+            </Badge>
           )}
           {inc.status && (
-            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full capitalize ${STATUS_COLOR[inc.status] ?? STATUS_COLOR.open}`}>
+            <Badge variant="outline" className={cn('capitalize border-transparent', STATUS_COLOR[inc.status] ?? STATUS_COLOR.open)}>
               {inc.status}
-            </span>
+            </Badge>
           )}
           {inc.startedAt && (
-            <span className="text-xs text-zinc-400">Started {new Date(inc.startedAt).toLocaleString()}</span>
+            <span className="text-xs text-muted-foreground">Started {new Date(inc.startedAt).toLocaleString()}</span>
           )}
           {inc.source && (
-            <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded">{inc.source}</span>
+            <Badge variant="secondary" className="text-muted-foreground">{inc.source}</Badge>
           )}
         </div>
       </div>
@@ -166,38 +173,38 @@ export default function IncidentDetailPage() {
       </div>
 
       {events.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-6 mb-5">
-          <h2 className="text-sm font-semibold text-zinc-700 mb-5">Timeline</h2>
+        <div className="bg-card border border-border rounded-xl p-6 mb-5">
+          <h2 className="text-sm font-semibold text-foreground mb-5">Timeline</h2>
           <Timeline events={events} />
         </div>
       )}
 
       {ctx.engineers.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-5 mb-5">
-          <h2 className="text-sm font-semibold text-zinc-700 mb-3">Engineers involved</h2>
+        <div className="bg-card border border-border rounded-xl p-5 mb-5">
+          <h2 className="text-sm font-semibold text-foreground mb-3">Engineers involved</h2>
           <div className="flex flex-wrap gap-2">
             {ctx.engineers.map(e => (
-              <span key={e.id} className="inline-flex items-center gap-1.5 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-3 py-1">
+              <Badge key={e.id} variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/30 rounded-full px-3 py-1">
                 {e.name ?? e.githubLogin ?? e.id}
-              </span>
+              </Badge>
             ))}
           </div>
         </div>
       )}
 
       {ctx.bugs.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-5 mb-5">
-          <h2 className="text-sm font-semibold text-zinc-700 mb-3">Linked bugs</h2>
+        <div className="bg-card border border-border rounded-xl p-5 mb-5">
+          <h2 className="text-sm font-semibold text-foreground mb-3">Linked bugs</h2>
           <div className="flex flex-col gap-2">
             {ctx.bugs.map(b => (
               <div key={b.id} className="flex items-center justify-between text-sm">
-                <span className="text-zinc-700">{b.title ?? b.jiraId}</span>
+                <span className="text-foreground">{b.title ?? b.jiraId}</span>
                 <div className="flex items-center gap-2">
                   {b.priority && (
-                    <span className="text-xs text-zinc-400 capitalize">{b.priority}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{b.priority}</span>
                   )}
                   {b.url && (
-                    <a href={b.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+                    <a href={b.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
                       {b.jiraId}
                     </a>
                   )}
@@ -209,13 +216,13 @@ export default function IncidentDetailPage() {
       )}
 
       {ctx.services.length > 0 && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-5">
-          <h2 className="text-sm font-semibold text-zinc-700 mb-3">Affected services</h2>
+        <div className="bg-card border border-border rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-3">Affected services</h2>
           <div className="flex flex-wrap gap-2">
             {ctx.services.map(s => (
-              <span key={s.id} className="text-xs bg-zinc-100 text-zinc-700 px-3 py-1 rounded-full">
+              <Badge key={s.id} variant="secondary" className="rounded-full px-3 py-1">
                 {s.name ?? s.id}
-              </span>
+              </Badge>
             ))}
           </div>
         </div>
