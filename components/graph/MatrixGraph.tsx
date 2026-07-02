@@ -12,13 +12,26 @@ interface GLink { source: string; target: string; type: string; confidence?: num
 interface Props  { nodes: GNode[]; links: GLink[]; }
 
 // ── Palette ───────────────────────────────────────────────────────────────────
-// SecretAlert sits between Service and Incident — the "hidden threat" column
-const COL_ORDER = ['Deployment','PullRequest','Engineer','Service','SecretAlert','Incident','Bug','Alert'] as const;
+// SecretAlert sits between Service and Incident — the "hidden threat" column.
+// Columns after Alert cover the non-GitHub tools (Jira, Slack, PagerDuty,
+// Linear, Datadog) so every connected tool's data is visible here, not just
+// the original GitHub/Jira/Datadog core graph.
+export const COL_ORDER = [
+  'Deployment', 'PullRequest', 'Engineer', 'Service', 'SecretAlert', 'Incident', 'Bug', 'Alert',
+  'WorkflowRun', 'SecurityIncident', 'Issue',
+  'Message', 'IncidentChannel', 'Decision',
+  'AlertMessage', 'OnCallSchedule',
+  'SprintNode', 'Cycle', 'Project', 'SLO',
+] as const;
 
-const COLOR: Record<string,string> = {
+export const COLOR: Record<string,string> = {
   Deployment:'#3b82f6', PullRequest:'#06b6d4',  Engineer:'#22c55e',
   Service:'#f97316',    SecretAlert:'#dc2626',   Incident:'#ef4444',
   Bug:'#f59e0b',        Alert:'#a855f7',
+  WorkflowRun:'#0ea5e9', SecurityIncident:'#e11d48', Issue:'#facc15',
+  Message:'#14b8a6', IncidentChannel:'#0d9488', Decision:'#84cc16',
+  AlertMessage:'#f472b6', OnCallSchedule:'#fb923c',
+  SprintNode:'#818cf8', Cycle:'#c084fc', Project:'#a78bfa', SLO:'#38bdf8',
 };
 
 const EDGE_COLOR: Record<string,string> = {
@@ -26,16 +39,22 @@ const EDGE_COLOR: Record<string,string> = {
   POSSIBLY_TRIGGERED:'#dc2626', HAS_SECRET_ALERT:'#dc2626', PUSHED_SECRET:'#b91c1c',
   INTRODUCED_SECRET:'#ef4444', OWNS:'#22c55e',             INCLUDES:'#3b82f6',
   AUTHORED_BY:'#06b6d4',       CHANGED:'#f97316',          ASSIGNED_TO:'#475569',
+  HAS_ISSUE:'#facc15',         FOUND_IN:'#facc15',         CAUSED_BY:'#e11d48',
+  MENTIONS:'#14b8a6',          SLACK_ALERT_FOR:'#0d9488',  MADE_BY:'#84cc16',
+  ON_CALL_FOR:'#fb923c',       ESCALATED_TO:'#f472b6',     RESPONDED_BY:'#f472b6',
+  IN_SPRINT:'#818cf8',         IN_CYCLE:'#c084fc',         IN_PROJECT:'#a78bfa',
+  MEASURES:'#38bdf8',          BLOCKED_BY:'#e11d48',       FAILED_ON:'#0ea5e9',
 };
 
 // All edges that visually "break" during a security incident or outage
 const BREAK_EDGES = new Set([
   'TRIGGERED','FIRED','LINKED_TO',
   'POSSIBLY_TRIGGERED','HAS_SECRET_ALERT','PUSHED_SECRET',
+  'CAUSED_BY','BLOCKED_BY',
 ]);
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-const SVG_W   = 1120;
+const SVG_W   = COL_ORDER.length * 130;
 const COL_W   = SVG_W / COL_ORDER.length;
 const PAD_TOP = 68;
 const PAD_BOT = 48;

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { getSupabase } from '../config/postgres';
 
 export type OrgRole = 'owner' | 'admin' | 'member';
@@ -106,7 +106,7 @@ export async function authMiddleware(
       }
 
       // Auto-provision an org on first login so no manual DB setup is needed
-      const orgId = uuidv4();
+      const orgId = randomUUID();
       const domain = user.email?.split('@')[1] ?? 'myorg';
       const orgName = domain;
       // slug must be unique — use domain + short random suffix

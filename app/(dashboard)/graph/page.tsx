@@ -2,17 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
-import MatrixGraph from '@/components/graph/MatrixGraph';
+import MatrixGraph, { COL_ORDER, COLOR } from '@/components/graph/MatrixGraph';
 
-const LEGEND = [
-  { label: 'Deployment',  color: '#3b82f6' },
-  { label: 'PullRequest', color: '#06b6d4' },
-  { label: 'Engineer',    color: '#22c55e' },
-  { label: 'Service',     color: '#f97316' },
-  { label: 'Incident',    color: '#ef4444' },
-  { label: 'Bug',         color: '#f59e0b' },
-  { label: 'Alert',       color: '#a855f7' },
-];
+// Mirrors MatrixGraph's columns exactly, across every connected tool —
+// not just the original GitHub/Jira/Datadog core graph.
+const LEGEND = COL_ORDER.map(label => ({ label, color: COLOR[label] }));
 
 export default function GraphPage() {
   const [data, setData]   = useState<{ nodes: any[]; links: any[] } | null>(null);
@@ -29,6 +23,8 @@ export default function GraphPage() {
   const hasBreakdown = (data?.nodes ?? []).some(
     n => n.type === 'Incident' && n.status !== 'resolved'
   );
+
+  const presentTypes = new Set((data?.nodes ?? []).map(n => n.type));
 
   return (
     <div className="flex h-full flex-col bg-[#080d1a]">
@@ -52,10 +48,14 @@ export default function GraphPage() {
             </span>
           )}
         </div>
-        {/* Legend */}
-        <div className="flex flex-wrap gap-3">
+        {/* Legend — every connected tool's node types, dimmed if none are in the graph yet */}
+        <div className="flex flex-wrap gap-3 max-w-2xl justify-end">
           {LEGEND.map(({ label, color }) => (
-            <span key={label} className="flex items-center gap-1.5 text-[10px] text-slate-500">
+            <span
+              key={label}
+              className="flex items-center gap-1.5 text-[10px] text-slate-500"
+              style={{ opacity: presentTypes.has(label) ? 1 : 0.35 }}
+            >
               <span className="inline-block w-2 h-2 rounded-full" style={{ background: color }} />
               {label}
             </span>

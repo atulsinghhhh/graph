@@ -10,8 +10,6 @@ import {
   Share2,
   Sparkles,
   AlertTriangle,
-  Zap,
-  ShieldAlert,
   GitBranch,
   LayoutGrid,
   Kanban,
@@ -34,22 +32,29 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-const NAV: { href: string; label: string; icon: LucideIcon }[] = [
+type NavItem = { href: string; label: string; icon: LucideIcon };
+
+// Top-level nav. Insights and Secrets live inside /github/report now (both are
+// GitHub-only data), not as standalone items here.
+const NAV: NavItem[] = [
   { href: '/integrations', label: 'Integrations', icon: Plug },
   { href: '/reports', label: 'Reports', icon: LayoutGrid },
-  { href: '/github/report', label: 'GitHub Report', icon: GitBranch },
-  { href: '/jira/report', label: 'Jira Report', icon: Kanban },
-  { href: '/slack/report', label: 'Slack Report', icon: MessageCircle },
-  { href: '/pagerduty/report', label: 'PagerDuty Report', icon: BellRing },
-  { href: '/linear/report', label: 'Linear Report', icon: CircleDot },
-  { href: '/datadog/report', label: 'Datadog Report', icon: Activity },
   { href: '/integrations/team', label: 'Team', icon: Users },
   { href: '/sync', label: 'Sync', icon: RefreshCw },
   { href: '/graph', label: 'Graph', icon: Share2 },
   { href: '/chat', label: 'AI Chat', icon: Sparkles },
   { href: '/incidents', label: 'Incidents', icon: AlertTriangle },
-  { href: '/insights', label: 'Dev Insights', icon: Zap },
-  { href: '/secrets', label: 'Secrets', icon: ShieldAlert },
+];
+
+// Per-tool report pages — nested under "Reports", only shown when the viewer
+// is somewhere in the reports section (on /reports itself or one of these).
+const REPORT_LINKS: NavItem[] = [
+  { href: '/github/report', label: 'GitHub', icon: GitBranch },
+  { href: '/jira/report', label: 'Jira', icon: Kanban },
+  { href: '/slack/report', label: 'Slack', icon: MessageCircle },
+  { href: '/pagerduty/report', label: 'PagerDuty', icon: BellRing },
+  { href: '/linear/report', label: 'Linear', icon: CircleDot },
+  { href: '/datadog/report', label: 'Datadog', icon: Activity },
 ];
 
 const REPORT_BADGE_CONFIG: Record<string, string[]> = {
@@ -68,7 +73,8 @@ export default function Sidebar({ email }: { email: string }) {
   const [reportBadgeCounts, setReportBadgeCounts] = useState<Record<string, number>>({});
   const [showTeamLink, setShowTeamLink] = useState(false);
 
-  // Poll open secret alert count every 60s
+  // Poll open secret alert count every 60s — folded into the GitHub Report badge,
+  // since Secrets lives inside /github/report now.
   useEffect(() => {
     function fetchCount() {
       api.get('/api/secrets')
@@ -104,17 +110,19 @@ export default function Sidebar({ email }: { email: string }) {
     return () => clearInterval(id);
   }, []);
 
-  // Only show "Team" once there's a team, or you can manage one
+  // Team is solo/org's one real distinction: hidden entirely until there's
+  // actually a team (memberCount >= 2). Being 'owner' of a solo org shouldn't
+  // surface it — every solo user is the owner of their own org.
   useEffect(() => {
     api.get('/api/organizations/me')
-      .then(r => {
-        const { role, memberCount } = r.data;
-        setShowTeamLink(memberCount >= 2 || role === 'owner' || role === 'admin');
-      })
+      .then(r => setShowTeamLink((r.data.memberCount ?? 1) >= 2))
       .catch(() => {});
   }, []);
 
   const nav = NAV.filter(item => item.href !== '/integrations/team' || showTeamLink);
+
+  const isReportsSection = pathname === '/reports' || REPORT_LINKS.some(l => pathname.startsWith(l.href));
+  const reportBadgeTotal = Object.values(reportBadgeCounts).reduce((a, b) => a + b, 0) + openSecrets;
 
   async function signOut() {
     const supabase = createClient();
@@ -124,6 +132,33 @@ export default function Sidebar({ email }: { email: string }) {
 
   const initial = email ? email[0].toUpperCase() : '?';
 
+  function NavRow({ href, label, icon: Icon, badgeCount, nested }: NavItem & { badgeCount?: number; nested?: boolean }) {
+    const active = pathname === href || pathname.startsWith(href + '/');
+    return (
+      <Link
+        href={href}
+        className={cn(
+          'relative flex items-center gap-2.5 py-2 rounded-md text-sm transition-colors',
+          nested ? 'pl-9 pr-3' : 'px-3',
+          active
+            ? 'bg-accent text-foreground font-medium'
+            : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
+        )}
+      >
+        {active && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-primary" />
+        )}
+        <Icon className={cn('shrink-0', nested ? 'size-3.5' : 'size-4')} strokeWidth={2} />
+        <span className="flex-1">{label}</span>
+        {!!badgeCount && (
+          <Badge variant="destructive" className="h-5 min-w-5 justify-center px-1 rounded-full">
+            {badgeCount}
+          </Badge>
+        )}
+      </Link>
+    );
+  }
+
   return (
     <aside className="w-60 flex flex-col border-r border-border bg-card h-full shrink-0">
       <div className="px-5 py-5 border-b border-border">
@@ -132,39 +167,29 @@ export default function Sidebar({ email }: { email: string }) {
       </div>
 
       <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5 overflow-y-auto">
-        {nav.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + '/');
-          const isSecrets = href === '/secrets';
-          const reportBadgeCount = reportBadgeCounts[href] ?? 0;
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'relative flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors',
-                active
-                  ? 'bg-accent text-foreground font-medium'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/60'
-              )}
-            >
-              {active && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-0.5 rounded-full bg-primary" />
-              )}
-              <Icon className="size-4 shrink-0" strokeWidth={2} />
-              <span className="flex-1">{label}</span>
-              {isSecrets && openSecrets > 0 && (
-                <Badge variant="destructive" className="h-5 min-w-5 justify-center px-1 rounded-full">
-                  {openSecrets}
-                </Badge>
-              )}
-              {reportBadgeCount > 0 && (
-                <Badge variant="destructive" className="h-5 min-w-5 justify-center px-1 rounded-full">
-                  {reportBadgeCount}
-                </Badge>
-              )}
-            </Link>
-          );
-        })}
+        {nav.map(item => (
+          <div key={item.href} className="flex flex-col gap-0.5">
+            <NavRow
+              {...item}
+              badgeCount={item.href === '/reports' && !isReportsSection ? reportBadgeTotal : undefined}
+            />
+            {item.href === '/reports' && isReportsSection && (
+              <div className="flex flex-col gap-0.5">
+                {REPORT_LINKS.map(link => (
+                  <NavRow
+                    key={link.href}
+                    {...link}
+                    nested
+                    badgeCount={
+                      (reportBadgeCounts[link.href] ?? 0) +
+                      (link.href === '/github/report' ? openSecrets : 0)
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </nav>
 
       <div className="px-3 py-3 border-t border-border">

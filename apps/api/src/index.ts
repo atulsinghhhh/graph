@@ -88,7 +88,7 @@ async function start() {
   // Ensure the dev org exists so x-org-id bypass works end-to-end
   if (process.env.NODE_ENV !== 'production' && serviceStatus.postgres === 'connected') {
     try {
-      const { getSupabase } = await import('./config/postgres');
+      const { getSupabase } = await import('./config/postgres.js');
       const sb = getSupabase();
       await sb.from('organizations').upsert(
         { id: '00000000-0000-0000-0000-000000000001', name: 'Dev Org', slug: 'dev-org' },

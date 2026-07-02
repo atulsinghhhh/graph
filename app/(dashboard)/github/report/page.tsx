@@ -37,6 +37,46 @@ interface SecretRow {
   };
 }
 
+// ── Dev Insights tab (AI risk analysis of recently merged PRs) ────────────────
+interface InsightIncident { title: string; severity: string }
+interface InsightBug      { jiraId: string; title: string; priority: string }
+
+interface Insight {
+  prNumber: number;
+  prTitle: string;
+  prUrl?: string;
+  engineer: string;
+  mergedAt?: string;
+  services: string[];
+  linkedIncidents: InsightIncident[];
+  linkedBugs: InsightBug[];
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  summary: string;
+  potentialIssues: string[];
+  fixSuggestions: string[];
+}
+
+const RISK_BADGE_STYLE: Record<string, string> = {
+  low: 'bg-success/10 text-success border-success/30',
+  medium: 'bg-warning/10 text-warning border-warning/30',
+  high: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+  critical: 'bg-destructive/10 text-destructive border-destructive/30',
+};
+
+function timeAgoOrNow(iso?: string) {
+  if (!iso) return '';
+  return timeAgo(iso);
+}
+
+// ── Secrets tab (org-wide SecretAlert feed, not just the top banner above) ────
+interface SecretAlertRow {
+  alert: Record<string, any>;
+  engineers: Record<string, any>[];
+  services: Record<string, any>[];
+  pullRequests: Record<string, any>[];
+  incidents: (Record<string, any> & { confidence: number | null })[];
+}
+
 const PR_ISSUE_TYPES = ['failing_checks', 'merge_conflict', 'stale', 'large_pr', 'no_review'];
 const REPO_SECURITY_TYPES = ['no_branch_protection', 'vulnerability', 'missing_gitignore'];
 
@@ -176,18 +216,24 @@ export default function GithubReportPage() {
   const [report, setReport] = useState<HourlyReport | null>(null);
   const [secrets, setSecrets] = useState<SecretRow[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<'ci' | 'pr' | 'security' | 'repos'>('ci');
+  const [tab, setTab] = useState<'ci' | 'pr' | 'security' | 'insights' | 'secrets' | 'repos'>('ci');
   const [repoHealth, setRepoHealth] = useState<any[]>([]);
+  const [insights, setInsights] = useState<Insight[]>([]);
+  const [secretAlerts, setSecretAlerts] = useState<SecretAlertRow[]>([]);
 
   function load() {
     Promise.all([
       api.get('/api/github/hourly-report').then(r => r.data).catch(() => null),
       api.get('/api/github/secrets').then(r => r.data).catch(() => []),
       api.get('/api/github/repo-health').then(r => r.data).catch(() => []),
-    ]).then(([reportData, secretsData, repoHealthData]) => {
+      api.get('/api/insights').then(r => r.data).catch(() => []),
+      api.get('/api/secrets').then(r => r.data).catch(() => []),
+    ]).then(([reportData, secretsData, repoHealthData, insightsData, secretAlertsData]) => {
       setReport(reportData);
       setSecrets(secretsData ?? []);
       setRepoHealth(repoHealthData ?? []);
+      setInsights(insightsData ?? []);
+      setSecretAlerts(secretAlertsData ?? []);
       setLoaded(true);
     });
   }
@@ -264,6 +310,8 @@ export default function GithubReportPage() {
             ['ci', `CI/CD Health (${ciIssues.length})`],
             ['pr', `Pull Request Issues (${prIssues.length})`],
             ['security', `Repo Security (${securityIssues.length})`],
+            ['insights', `Dev Insights (${insights.length})`],
+            ['secrets', `Secrets (${secretAlerts.length})`],
             ['repos', `All Repos (${repoHealth.length})`],
           ] as const).map(([key, label]) => (
             <button
@@ -308,6 +356,22 @@ export default function GithubReportPage() {
             securityIssues.length > 0
               ? securityIssues.map(i => <IssueRow key={i.nodeId} issue={i} />)
               : <p className="text-sm text-muted-foreground">No repo security issues detected.</p>
+          )}
+
+          {tab === 'insights' && (
+            insights.length > 0 ? (
+              <div className="flex flex-col gap-4">
+                {insights.map(ins => <InsightCard key={ins.prNumber} insight={ins} />)}
+              </div>
+            ) : <p className="text-sm text-muted-foreground">No merged pull requests found yet.</p>
+          )}
+
+          {tab === 'secrets' && (
+            secretAlerts.length > 0 ? (
+              <div className="flex flex-col gap-4">
+                {secretAlerts.map((row, i) => <SecretAlertCard key={i} row={row} />)}
+              </div>
+            ) : <p className="text-sm text-muted-foreground">No secret scanning alerts found.</p>
           )}
 
           {tab === 'repos' && (
@@ -374,6 +438,169 @@ function SecretCard({ row, onResolved }: { row: SecretRow; onResolved: () => voi
         <p className="text-xs text-foreground bg-muted rounded-md px-3 py-2 mt-3 leading-relaxed">
           {incident.fixSuggestion}
         </p>
+      )}
+    </div>
+  );
+}
+
+function InsightCard({ insight: ins }: { insight: Insight }) {
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-border">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-mono text-muted-foreground">#{ins.prNumber}</span>
+            {ins.prUrl ? (
+              <a href={ins.prUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-foreground hover:underline truncate">
+                {ins.prTitle}
+              </a>
+            ) : (
+              <span className="text-sm font-medium text-foreground truncate">{ins.prTitle}</span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            by <span className="font-medium text-foreground">{ins.engineer}</span>
+            {ins.mergedAt && <> · {timeAgoOrNow(ins.mergedAt)}</>}
+            {ins.services.length > 0 && <> · {ins.services.join(', ')}</>}
+          </p>
+        </div>
+        <Badge variant="outline" className={cn('shrink-0 uppercase text-[11px]', RISK_BADGE_STYLE[ins.riskLevel])}>
+          {ins.riskLevel}
+        </Badge>
+      </div>
+
+      <div className="px-4 py-3 flex flex-col gap-3">
+        <p className="text-sm text-foreground">{ins.summary}</p>
+
+        {(ins.linkedIncidents.length > 0 || ins.linkedBugs.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {ins.linkedIncidents.map((i, idx) => (
+              <Badge key={idx} variant="destructive" className="text-[11px]">⚠ {i.title}</Badge>
+            ))}
+            {ins.linkedBugs.map((b, idx) => (
+              <Badge key={idx} variant="outline" className="text-[11px] bg-warning/10 text-warning border-warning/30">
+                {b.jiraId}: {b.title}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {ins.potentialIssues.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Potential Issues</p>
+            <ul className="space-y-1">
+              {ins.potentialIssues.map((issue, idx) => (
+                <li key={idx} className="flex gap-2 text-sm text-muted-foreground">
+                  <span className="text-warning mt-0.5 shrink-0">•</span>
+                  {issue}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {ins.fixSuggestions.length > 0 && (
+          <div className="rounded-lg bg-muted px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">How to Fix for Future Pushes</p>
+            <ol className="space-y-1.5 list-decimal list-inside">
+              {ins.fixSuggestions.map((fix, idx) => (
+                <li key={idx} className="text-sm text-foreground">{fix}</li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SecretAlertCard({ row }: { row: SecretAlertRow }) {
+  const a = row.alert;
+  if (!a) return null;
+  const open = a.state === 'open';
+
+  return (
+    <div className={cn('rounded-xl border p-4', open ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-card')}>
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Badge variant={open ? 'destructive' : 'success'} className="text-[10px] uppercase">
+              {a.state}
+            </Badge>
+            {a.pushProtectionBypassed && open && (
+              <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/30">
+                Push protection bypassed
+              </Badge>
+            )}
+            <span className="text-xs font-mono text-muted-foreground">#{a.alertNumber}</span>
+          </div>
+          <p className="font-semibold text-foreground text-sm">{a.secretType}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{a.repository}</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-xs text-muted-foreground">{a.createdAt ? timeAgo(a.createdAt) : ''}</p>
+          {a.url && (
+            <a href={a.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline mt-1 inline-block">
+              View on GitHub →
+            </a>
+          )}
+        </div>
+      </div>
+
+      {row.engineers.length > 0 && (
+        <div className="rounded-lg bg-muted px-4 py-3 mb-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Pushed by</p>
+          <div className="flex flex-wrap gap-2">
+            {row.engineers.map((e, ei) => (
+              <Badge key={ei} variant="outline" className="text-xs">
+                {e.name ?? e.githubLogin ?? 'Unknown'}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        {row.services.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Service</p>
+            <p className="text-foreground font-medium">{row.services.map((s: any) => s.name).join(', ')}</p>
+          </div>
+        )}
+        {a.resolution && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Resolution</p>
+            <p className="text-foreground font-medium capitalize">{a.resolution}</p>
+          </div>
+        )}
+        {a.commitSha && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Commit</p>
+            <p className="text-foreground font-mono">{String(a.commitSha).slice(0, 8)}</p>
+          </div>
+        )}
+        {a.updatedAt && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">Updated</p>
+            <p className="text-foreground">{timeAgo(a.updatedAt)}</p>
+          </div>
+        )}
+      </div>
+
+      {row.incidents.length > 0 && (
+        <div className="mt-3 rounded-lg bg-destructive/10 px-4 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-destructive mb-1.5">May have triggered</p>
+          <div className="space-y-1">
+            {row.incidents.map((inc: any, ii: number) => (
+              <div key={ii} className="flex items-center justify-between text-xs">
+                <span className="text-destructive font-medium">{inc.title ?? inc.id}</span>
+                {inc.confidence != null && (
+                  <span className="text-destructive font-mono">{Math.round(inc.confidence * 100)}% confidence</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

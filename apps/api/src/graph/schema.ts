@@ -1,6 +1,9 @@
 import { runQuery } from '../config/neo4j';
 
-const LABELS = [
+// The full set of node labels in the graph, across every connected tool.
+// Shared with graph/queries.ts (write-time validation) and routes/graph.ts
+// (visualization) so a label only ever needs to be added in one place.
+export const LABELS = [
   'Deployment', 'PullRequest', 'Engineer', 'Service', 'Incident', 'Bug', 'Alert', 'SecretAlert',
   'WorkflowRun', 'SecurityIncident', 'Message',
   'Issue', 'SprintNode', 'IncidentChannel', 'Decision', 'AlertMessage', 'OnCallSchedule',

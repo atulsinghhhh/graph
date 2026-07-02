@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { getRedis } from '../config/redis';
 import { getSupabase } from '../config/postgres';
 import { getGitHubAuthUrl, exchangeGitHubCode } from '../integrations/github/auth';
@@ -20,7 +20,7 @@ const STATE_TTL = 15 * 60; // 15 minutes in seconds
 router.get('/github/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
-    const state = uuidv4();
+    const state = randomUUID();
     const redis = getRedis();
 
     await redis.set(`github:oauth:state:${state}`, JSON.stringify({ orgId }), 'EX', STATE_TTL);
@@ -84,7 +84,7 @@ router.get('/github/callback', async (req: Request, res: Response) => {
 router.get('/jira/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
-    const state = uuidv4();
+    const state = randomUUID();
     const redis = getRedis();
 
     await redis.set(`jira:oauth:state:${state}`, JSON.stringify({ orgId }), 'EX', STATE_TTL);
@@ -189,7 +189,7 @@ router.post('/datadog/connect', authMiddleware as any, requireRole('owner', 'adm
 router.get('/slack/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
-    const state = uuidv4();
+    const state = randomUUID();
     const redis = getRedis();
 
     await redis.set(`slack:oauth:state:${state}`, JSON.stringify({ orgId }), 'EX', STATE_TTL);
@@ -272,7 +272,7 @@ router.post('/pagerduty/connect', authMiddleware as any, requireRole('owner', 'a
 router.get('/linear/connect', authMiddleware as any, requireRole('owner', 'admin'), async (req: AuthedRequest, res: Response) => {
   try {
     const orgId = req.user!.orgId;
-    const state = uuidv4();
+    const state = randomUUID();
     const redis = getRedis();
 
     await redis.set(`linear:oauth:state:${state}`, JSON.stringify({ orgId }), 'EX', STATE_TTL);
